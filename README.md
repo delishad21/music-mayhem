@@ -6,7 +6,7 @@ Music Mayhem is a real-time multiplayer music guessing game with three modes:
 - **Guess the Song (Easy)** – guess the song title and artist(s) while a clip plays.
 - **Guess the Song (Challenge)** – progressively longer clips of a song, score based on how early you guess.
 
-The app supports solo or multiplayer modes with session creation. Players can uplaod their own playlists from Spotify or Youtube to play with.
+The app supports solo or multiplayer modes with session creation. Players can upload their own playlists from Spotify or Youtube to play with.
 
 ## Documentation
 
