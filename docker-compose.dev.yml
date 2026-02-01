@@ -1,0 +1,145 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: music-game-mongo-dev
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    env_file:
+      - ./.env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+    volumes:
+      - mongodb_data_dev:/data/db
+    networks:
+      - music-game-network-dev
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Song Download Service (Python Flask API) - Development
+  song-service:
+    build:
+      context: ./song-service
+      dockerfile: Dockerfile.dev
+    container_name: music-game-songs-dev
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./.env
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - SPOTIFY_MARKET=${SPOTIFY_MARKET}
+    volumes:
+      - ./song-service:/app  # Mount source code for hot reload
+      - song_data_dev:/app/songs
+    networks:
+      - music-game-network-dev
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  # Game API (Express + Socket.IO) - Development with Hot Reload
+  game-service:
+    build:
+      context: ./game-service
+      dockerfile: Dockerfile.dev
+    container_name: music-game-game-service-dev
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./.env
+    environment:
+      - PORT=${PORT}
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - SONG_SERVICE_URL=${SONG_SERVICE_URL}
+      - SONG_SERVICE_PATH=${SONG_SERVICE_PATH}
+    volumes:
+      - ./game-service/src:/app/src  # Mount source code for hot reload
+      - ./game-service/package.json:/app/package.json
+      - ./game-service/tsconfig.json:/app/tsconfig.json
+      - song_data_dev:/app/songs:ro
+      - backend_node_modules:/app/node_modules  # Anonymous volume for node_modules
+    networks:
+      - music-game-network-dev
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      song-service:
+        condition: service_started
+
+  # Frontend (Next.js) - Development with Fast Refresh
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: music-game-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./.env
+    environment:
+      - PORT=3000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NEXT_BACKEND_URL=${NEXT_BACKEND_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - WATCHPACK_POLLING=${WATCHPACK_POLLING}  # Enable polling for file watching in Docker
+    volumes:
+      - ./frontend/src:/app/src  # Mount source code for hot reload
+      - ./frontend/public:/app/public
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/next.config.ts:/app/next.config.ts
+      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts
+      - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - frontend_node_modules:/app/node_modules  # Anonymous volume for node_modules
+      - frontend_next:/app/.next  # Cache .next folder
+    networks:
+      - music-game-network-dev
+    depends_on:
+      - game-service
+
+  # Single-URL reverse proxy (for ngrok)
+  edge:
+    image: nginx:1.27-alpine
+    container_name: music-game-edge-dev
+    restart: unless-stopped
+    ports:
+      - "5762:80"
+    volumes:
+      - ./infra/nginx/dev-ngrok.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - music-game-network-dev
+    depends_on:
+      - frontend
+      - game-service
+
+volumes:
+  mongodb_data_dev:
+    driver: local
+  song_data_dev:
+    driver: local
+  backend_node_modules:
+    driver: local
+  frontend_node_modules:
+    driver: local
+  frontend_next:
+    driver: local
+
+networks:
+  music-game-network-dev:
+    driver: bridge

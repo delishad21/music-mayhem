@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.env.local
+.git
+.gitignore
+songs/audio/*.mp3
+songs/lyrics/*.lrc
+*.md

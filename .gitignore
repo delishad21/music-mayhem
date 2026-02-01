@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.Python
+venv/
+env/
+
+# Build outputs
+.next/
+dist/
+build/
+.cache
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Song files (large media files)
+song-service/songs/audio/*.mp3
+song-service/songs/lyrics/*.lrc
+
+# Keep directory structure
+!song-service/songs/audio/.gitkeep
+!song-service/songs/lyrics/.gitkeep
+
+# Database
+data/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local nginx config
+musicgame.conf
+docker-compose.portainer.yml
+homeserver.conf
