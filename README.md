@@ -16,11 +16,11 @@ https://github.com/user-attachments/assets/fb441c27-a1b2-4513-a1cf-fa47e135b726
 
 ### Guess the Song (Easy) Gameplay
 
-https://github.com/user-attachments/assets/2412755d-815c-46a2-914d-412958787989
+https://github.com/user-attachments/assets/05e9d05b-1176-4fbe-b7cb-e85c6c3f43e2
 
 ### Guess the Song (Challenge) Gameplay
 
-https://github.com/user-attachments/assets/dafbaaba-dd04-48fb-bdd1-12c2ca70bc41
+https://github.com/user-attachments/assets/764edc97-afa6-4774-acd5-71443280a872
 
 ## Documentation
 
