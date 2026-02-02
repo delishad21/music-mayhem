@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { CheckCircle, Crown, User, XCircle, WarningCircle } from 'phosphor-react';
 import { GameMode, Player } from '@/types/game';
 
@@ -17,11 +19,15 @@ interface PlayersPanelProps {
 }
 
 export default function PlayersPanel({ players, mode, playerAnswerStatus, showStatusBorders = true }: PlayersPanelProps) {
+  const sortedPlayers = useMemo(() => {
+    return [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  }, [players]);
+
   return (
     <div className="card">
       <h3 className="text-xl font-bold mb-4">Players ({players.length})</h3>
-      <div className="space-y-3">
-        {players.map((player) => {
+      <div className="flex flex-col gap-3">
+        {sortedPlayers.map((player) => {
           const displayName = player.displayName || player.username;
           const status = playerAnswerStatus?.[player.id];
           const showFinishLyrics = mode === 'finish-lyrics';
@@ -49,9 +55,11 @@ export default function PlayersPanel({ players, mode, playerAnswerStatus, showSt
                   : 'rgba(239, 68, 68, 1)';
 
           return (
-            <div
+            <motion.div
               key={player.id}
-              className={`flex justify-between items-center gap-3 p-3 rounded-lg border-2`}
+              layout
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              className="flex justify-between items-center gap-3 p-3 rounded-lg border-2"
               style={{
                 backgroundColor: 'var(--card-hover)',
                 borderColor: showStatusBorders ? borderColor : 'rgba(255, 255, 255, 0.35)',
@@ -118,7 +126,7 @@ export default function PlayersPanel({ players, mode, playerAnswerStatus, showSt
               <span className="font-bold self-center" style={{ color: 'var(--primary)' }}>
                 {player.score}
               </span>
-            </div>
+            </motion.div>
           );
         })}
       </div>

@@ -175,6 +175,13 @@ function attachListeners(socket: Socket) {
     });
   });
 
+  socket.off('scores-reset');
+  socket.on('scores-reset', ({ room: updatedRoom }: { room: Room }) => {
+    console.log('Scores reset for new game');
+    setRoom(updatedRoom);
+    syncCurrentPlayer(updatedRoom);
+  });
+
   socket.off('playlist-preparing');
   socket.on('playlist-preparing', (data: { message?: string; queueStatus?: any; totalSongs?: number }) => {
     setGameState({

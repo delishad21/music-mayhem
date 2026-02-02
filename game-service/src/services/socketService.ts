@@ -595,6 +595,9 @@ export function setupSocketHandlers(io: Server) {
             gameState.clipPhase = undefined;
           }
 
+          // Emit updated room state with reset scores
+          io.to(room.code).emit('scores-reset', { room });
+
           await startNextRound(io, room);
         };
 

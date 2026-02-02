@@ -780,6 +780,7 @@ export default function GamePage() {
               }
               currentUsername={currentPlayer?.username}
               currentPlayerId={currentPlayer?.id}
+              autoScrollMode={isGuessMode ? 'all' : 'self'}
             />
           )}
         </div>

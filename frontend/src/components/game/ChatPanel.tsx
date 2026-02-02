@@ -14,6 +14,7 @@ interface ChatPanelProps {
   lastErrorMessage?: string;
   currentUsername?: string | null;
   currentPlayerId?: string | null;
+  autoScrollMode?: 'self' | 'all';
 }
 
 export default function ChatPanel({
@@ -28,15 +29,33 @@ export default function ChatPanel({
   lastErrorMessage,
   currentUsername,
   currentPlayerId,
+  autoScrollMode = 'self',
 }: ChatPanelProps) {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const pendingSelfScrollRef = useRef(false);
   const lastSubmitAtRef = useRef(0);
+  const lastMessageIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!pendingSelfScrollRef.current) return;
     const lastMessage = chatMessages[chatMessages.length - 1];
-    if (!lastMessage || (!currentUsername && !currentPlayerId)) {
+    if (!lastMessage) {
+      return;
+    }
+
+    if (lastMessage.id === lastMessageIdRef.current) {
+      return;
+    }
+    lastMessageIdRef.current = lastMessage.id;
+
+    if (autoScrollMode === 'all') {
+      const container = messageContainerRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+      return;
+    }
+
+    if (!pendingSelfScrollRef.current || (!currentUsername && !currentPlayerId)) {
       return;
     }
 
@@ -53,7 +72,7 @@ export default function ChatPanel({
         container.scrollTop = container.scrollHeight;
       }
     }
-  }, [chatMessages, currentUsername, currentPlayerId]);
+  }, [chatMessages, currentUsername, currentPlayerId, autoScrollMode]);
 
   const handleSubmit = (event: FormEvent) => {
     pendingSelfScrollRef.current = true;

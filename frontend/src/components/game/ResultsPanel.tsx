@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import Image from 'next/image';
 import { CheckCircle, XCircle, WarningCircle } from 'phosphor-react';
 import { GameMode, GameState } from '@/types/game';
@@ -9,10 +10,20 @@ interface ResultsPanelProps {
 }
 
 export default function ResultsPanel({ mode, gameState, roundLabel }: ResultsPanelProps) {
+  const sortedPlayerScores = useMemo(() => {
+    if (!gameState.playerScores) return [];
+    return [...gameState.playerScores].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  }, [gameState.playerScores]);
+
+  const sortedLyricAnswers = useMemo(() => {
+    if (!gameState.lyricAnswers) return [];
+    return [...gameState.lyricAnswers].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  }, [gameState.lyricAnswers]);
+
   return (
-    <div className="card text-center py-16">
+    <div className="card text-center py-6">
       {roundLabel && (
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-4">
           <div
             className="px-4 py-1 rounded-full text-xs font-semibold uppercase tracking-widest"
             style={{ border: '1px solid var(--border)', backgroundColor: 'var(--card-hover)' }}
@@ -21,144 +32,111 @@ export default function ResultsPanel({ mode, gameState, roundLabel }: ResultsPan
           </div>
         </div>
       )}
-      <h2 className="text-3xl font-bold mb-4">Round Complete!</h2>
-      {gameState.correctAnswer?.albumArtUrl && (
-        <div className="flex justify-center mb-6">
+      <h2 className="text-2xl font-bold mb-4">Round Complete!</h2>
+
+      {/* Song info - horizontal layout with album art on left */}
+      <div className="flex items-center justify-center gap-4 mb-4">
+        {gameState.correctAnswer?.albumArtUrl && (
           <Image
             src={gameState.correctAnswer.albumArtUrl}
             alt={`${gameState.correctAnswer.title || 'Album art'}`}
-            width={128}
-            height={128}
-            className="w-32 h-32 rounded-xl shadow-lg object-cover border"
+            width={80}
+            height={80}
+            className="w-20 h-20 rounded-lg shadow-lg object-cover border flex-shrink-0"
             style={{ borderColor: 'var(--border)' }}
             unoptimized
           />
+        )}
+        <div className="text-left">
+          <div className="text-xl font-semibold">{gameState.correctAnswer?.title || 'Unknown Title'}</div>
+          <div className="text-base opacity-80">{gameState.correctAnswer?.artist || 'Unknown Artist'}</div>
         </div>
-      )}
-      <div className="mb-6">
-        <div className="text-sm uppercase tracking-widest opacity-60 mb-2">Song Info</div>
-        <div className="text-2xl font-semibold">{gameState.correctAnswer?.title || 'Unknown Title'}</div>
-        <div className="text-lg opacity-80">{gameState.correctAnswer?.artist || 'Unknown Artist'}</div>
       </div>
       {mode === 'finish-lyrics' && gameState.correctAnswer?.lyric && (
         <div className="mb-4">
-          <div className="text-sm uppercase tracking-widest opacity-60 mb-2">Correct Lyric</div>
-          <div className="text-2xl font-semibold">{gameState.correctAnswer.lyric}</div>
+          <div className="text-sm uppercase tracking-widest opacity-60 mb-1">Correct Lyric</div>
+          <div className="text-lg font-semibold">{gameState.correctAnswer.lyric}</div>
         </div>
       )}
-      {(mode === 'guess-song-easy' || mode === 'guess-song-challenge') && gameState.playerScores && (
-        <div className="max-w-3xl mx-auto mt-6 space-y-3 text-left">
-          <div className="text-sm uppercase tracking-widest opacity-60 text-center">Player Results</div>
-          <div className="space-y-3">
-            {gameState.playerScores.map((player) => {
+
+      {/* Guess mode player results - compact grid */}
+      {(mode === 'guess-song-easy' || mode === 'guess-song-challenge') && sortedPlayerScores.length > 0 && (
+        <div className="mt-4 text-left">
+          <div className="text-xs uppercase tracking-widest opacity-60 text-center mb-2">Player Results</div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {sortedPlayerScores.map((player) => {
               const artistMatchedCount = player.artistMatchedCount ?? 0;
               const artistTotalRaw = player.artistTotal ?? 0;
               const displayArtistTotal = artistTotalRaw > 0 ? artistTotalRaw : (artistMatchedCount > 0 ? artistMatchedCount : 1);
               const hasAnyArtist = artistMatchedCount > 0;
               const hasAllArtists = artistMatchedCount > 0 && artistMatchedCount >= displayArtistTotal;
-              const artistLabel = displayArtistTotal <= 1 ? 'Artist' : 'Artists';
 
               return (
                 <div
                   key={player.username}
-                  className="rounded-xl border px-4 py-3"
+                  className="rounded-lg border px-3 py-2"
                   style={{ borderColor: 'var(--border)' }}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2">
-                      <div className="font-semibold text-lg">{player.displayName || player.username}</div>
-                      <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
-                        <span className="inline-flex items-center gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-sm truncate">{player.displayName || player.username}</div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="inline-flex items-center gap-0.5">
                           {player.answeredTitle ? (
-                            <CheckCircle size={18} weight="duotone" className="text-green-600" />
+                            <CheckCircle size={14} weight="duotone" className="text-green-600" />
                           ) : (
-                            <XCircle size={18} weight="duotone" className="text-red-500" />
+                            <XCircle size={14} weight="duotone" className="text-red-500" />
                           )}
                           Title
                         </span>
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex items-center gap-0.5">
                           {hasAllArtists ? (
-                            <CheckCircle size={18} weight="duotone" className="text-green-600" />
+                            <CheckCircle size={14} weight="duotone" className="text-green-600" />
                           ) : hasAnyArtist ? (
-                            <WarningCircle size={18} weight="duotone" className="text-yellow-500" />
+                            <WarningCircle size={14} weight="duotone" className="text-yellow-500" />
                           ) : (
-                            <XCircle size={18} weight="duotone" className="text-red-500" />
+                            <XCircle size={14} weight="duotone" className="text-red-500" />
                           )}
-                          {artistLabel} {artistMatchedCount}/{displayArtistTotal}
+                          {artistMatchedCount}/{displayArtistTotal}
                         </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-lg font-semibold" style={{ color: 'var(--primary)' }}>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
                         +{player.roundScore ?? 0}
                       </div>
-                      <div className="text-xs opacity-60">Total {player.score}</div>
+                      <div className="text-xs opacity-60">{player.score}</div>
                     </div>
                   </div>
-
-                  {(player.artistMatches?.length || player.artistMisses?.length) ? (
-                    <div className="mt-3 grid gap-2 md:grid-cols-2 text-sm">
-                      {player.artistMatches?.length ? (
-                        <div className="flex flex-col gap-1">
-                          <div className="text-xs uppercase tracking-widest opacity-60">Matched</div>
-                          <div className="flex flex-wrap gap-2">
-                            {player.artistMatches.map((artist) => (
-                              <span
-                                key={`match-${player.username}-${artist}`}
-                                className="px-2 py-1 rounded-full text-green-700 bg-green-500/15 border border-green-500/30"
-                              >
-                                {artist}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      {player.artistMisses?.length ? (
-                        <div className="flex flex-col gap-1">
-                          <div className="text-xs uppercase tracking-widest opacity-60">Missing</div>
-                          <div className="flex flex-wrap gap-2">
-                            {player.artistMisses.map((artist) => (
-                              <span
-                                key={`miss-${player.username}-${artist}`}
-                                className="px-2 py-1 rounded-full text-red-600 bg-red-500/10 border border-red-500/30"
-                              >
-                                {artist}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </div>
               );
             })}
           </div>
         </div>
       )}
-      {mode === 'finish-lyrics' && gameState.lyricAnswers && (
-        <div className="max-w-2xl mx-auto mt-6 space-y-3">
-          <div className="text-sm uppercase tracking-widest opacity-60">Player Answers</div>
-          <div className="space-y-2">
-            {gameState.lyricAnswers.map((entry) => (
+
+      {/* Finish lyrics player answers - compact */}
+      {mode === 'finish-lyrics' && sortedLyricAnswers.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs uppercase tracking-widest opacity-60 mb-2">Player Answers</div>
+          <div className="space-y-1">
+            {sortedLyricAnswers.map((entry) => (
               <div
                 key={entry.username}
-                className="flex flex-col gap-1 p-3 rounded-lg border text-left"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border text-left"
                 style={{ borderColor: 'var(--border)' }}
               >
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold">{entry.displayName || entry.username}</div>
-                  <div className="font-bold" style={{ color: 'var(--primary)' }}>
-                    {entry.score}
-                  </div>
+                <div className="font-semibold text-sm min-w-0 flex-shrink-0">{entry.displayName || entry.username}</div>
+                <div className="text-sm opacity-80 truncate flex-1">{entry.answer || '—'}</div>
+                <div className="font-bold text-sm flex-shrink-0" style={{ color: 'var(--primary)' }}>
+                  {entry.score}
                 </div>
-                <div className="text-sm opacity-80 whitespace-pre-wrap">{entry.answer || '—'}</div>
               </div>
             ))}
           </div>
         </div>
       )}
-      <p className="opacity-60 mt-4">Next round starting soon...</p>
+      <p className="opacity-60 mt-3 text-sm">Next round starting soon...</p>
     </div>
   );
 }
