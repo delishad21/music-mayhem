@@ -40,6 +40,7 @@ services:
       - SPOTIFY_MARKET=${SPOTIFY_MARKET}
     volumes:
       - ./song-service:/app  # Mount source code for hot reload
+      - ./song-service/cookies.txt:/run/secrets/yt-dlp-cookies.txt:ro
       - song_data_dev:/app/songs
     networks:
       - music-game-network-dev

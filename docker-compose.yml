@@ -33,6 +33,7 @@ services:
       - MONGODB_URI=${MONGODB_URI}
       - SPOTIFY_MARKET=${SPOTIFY_MARKET}
     volumes:
+      - ./song-service/cookies.txt:/run/secrets/yt-dlp-cookies.txt:ro
       - song_data:/app/songs
     networks:
       - music-game-network

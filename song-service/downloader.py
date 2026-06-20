@@ -7,6 +7,7 @@ Downloads songs from YouTube with synced lyrics
 import os
 import re
 import subprocess
+import shutil
 import requests
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Callable, Tuple
@@ -62,6 +63,8 @@ YT_MUSIC_NEGATIVE_MARKERS = [
     'remix',
 ]
 
+YTDLP_COOKIES_FILE = os.getenv('YTDLP_COOKIES_FILE', '').strip()
+YTDLP_COOKIES_CACHE = Path(os.getenv('YTDLP_COOKIES_CACHE', '/tmp/music-mayhem-ytdlp-cookies.txt'))
 
 def _ts() -> str:
     if LOG_TZ == 'utc':
@@ -588,7 +591,10 @@ def _normalize_download_url(url: str) -> str:
     return url
 
 
-def _apply_ydlp_reliability_opts(ydl_opts: Dict[str, Any]) -> Dict[str, Any]:
+def _apply_ydlp_reliability_opts(
+    ydl_opts: Dict[str, Any],
+    log_prefix: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Harden yt-dlp against common YouTube throttling/403 issues.
     """
@@ -607,7 +613,53 @@ def _apply_ydlp_reliability_opts(ydl_opts: Dict[str, Any]) -> Dict[str, Any]:
         }
     })
 
+    if YTDLP_COOKIES_FILE:
+        cookie_path = Path(YTDLP_COOKIES_FILE).expanduser()
+        if cookie_path.exists():
+            try:
+                YTDLP_COOKIES_CACHE.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(cookie_path, YTDLP_COOKIES_CACHE)
+                ydl_opts.setdefault('cookiefile', str(YTDLP_COOKIES_CACHE))
+            except Exception as exc:
+                log(f"⚠️ Failed to stage YTDLP cookies file: {exc}", log_prefix)
+        else:
+            log(f"⚠️ YTDLP_COOKIES_FILE does not exist: {cookie_path}", log_prefix)
+
     return ydl_opts
+
+
+def _extract_info_with_fallback(
+    ydl_opts: Dict[str, Any],
+    url: str,
+    download: bool = False,
+    process: bool = True,
+    log_prefix: Optional[str] = None,
+) -> Dict[str, Any]:
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            return ydl.extract_info(url, download=download, process=process)
+    except Exception as exc:
+        if 'Requested format is not available' not in str(exc):
+            raise
+
+        fallback_opts = dict(ydl_opts)
+        fallback_opts.pop('extractor_args', None)
+        fallback_opts.pop('format_sort', None)
+        log('⚠️ Retrying yt-dlp with a simpler format selector', log_prefix)
+        try:
+            with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                return ydl.extract_info(url, download=download, process=process)
+        except Exception as fallback_exc:
+            if 'Requested format is not available' not in str(fallback_exc):
+                raise
+            if 'cookiefile' not in fallback_opts:
+                raise
+
+            no_cookie_opts = dict(fallback_opts)
+            no_cookie_opts.pop('cookiefile', None)
+            log('⚠️ Retrying yt-dlp without cookies after format lookup failed', log_prefix)
+            with yt_dlp.YoutubeDL(no_cookie_opts) as ydl:
+                return ydl.extract_info(url, download=download, process=process)
 
 
 def _emit_progress(progress_callback: Optional[ProgressCallback], payload: Dict[str, Any]) -> None:
@@ -706,23 +758,46 @@ def prepare_song_metadata(
     Fetch song duration and synced lyrics without downloading audio.
     Returns canonical metadata for selecting clips before downloading.
     """
-    url_to_use = youtube_url
+    candidate_urls = [_normalize_download_url(youtube_url)]
     if song_name and artist_name:
         preferred = find_audio_track(song_name, artist_name, log_prefix)
         if preferred:
-            url_to_use = preferred
+            normalized_preferred = _normalize_download_url(preferred)
+            if normalized_preferred not in candidate_urls:
+                candidate_urls.insert(0, normalized_preferred)
 
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
     }
-    ydl_opts = _apply_ydlp_reliability_opts(ydl_opts)
+    ydl_opts = _apply_ydlp_reliability_opts(ydl_opts, log_prefix)
 
     try:
         _emit_progress(progress_callback, {'phase': 'preparing', 'progress': 0.05})
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(_normalize_download_url(url_to_use), download=False)
+        info = None
+        last_error: Optional[Exception] = None
+        for candidate_url in candidate_urls:
+            try:
+                info = _extract_info_with_fallback(
+                    ydl_opts,
+                    candidate_url,
+                    download=False,
+                    process=False,
+                    log_prefix=log_prefix,
+                )
+                break
+            except Exception as exc:
+                last_error = exc
+                if 'Requested format is not available' in str(exc):
+                    log(f"⚠️ Metadata prep failed for {candidate_url}; trying fallback URL", log_prefix)
+                    continue
+                raise
+
+        if info is None:
+            if last_error:
+                raise last_error
+            raise RuntimeError('Unable to prepare song metadata')
         _emit_progress(progress_callback, {'phase': 'preparing', 'progress': 0.25})
     except Exception as e:
         log(f"❌ Failed to fetch metadata: {e}", log_prefix)
@@ -747,7 +822,7 @@ def prepare_song_metadata(
     if require_lyrics:
         lrc_content, lyrics_source = search_synced_lyrics(
             f"{artist} {title_clean}",
-            _extract_youtube_id(url_to_use),
+            _extract_youtube_id(info.get('webpage_url') or candidate_urls[0]),
             duration,
             log_prefix,
         )
@@ -772,7 +847,7 @@ def prepare_song_metadata(
         try:
             lrc_content, lyrics_source = search_synced_lyrics(
                 f"{artist} {title_clean}",
-                _extract_youtube_id(url_to_use),
+                _extract_youtube_id(info.get('webpage_url') or candidate_urls[0]),
                 duration,
                 log_prefix,
             )
@@ -794,7 +869,7 @@ def prepare_song_metadata(
         'lyricsSource': lyrics_source,
         'artists': artists_list,
         'albumArtUrl': thumbnail,
-        'sourceUrl': url_to_use,
+        'sourceUrl': info.get('webpage_url') or candidate_urls[0],
         'sourceVideoId': info.get('id'),
         'sourceTitle': info.get('title'),
         'sourceUploader': info.get('uploader'),
@@ -837,7 +912,7 @@ def download_song(
         'quiet': True,
         'no_warnings': True,
     }
-    ydl_opts = _apply_ydlp_reliability_opts(ydl_opts)
+    ydl_opts = _apply_ydlp_reliability_opts(ydl_opts, log_prefix)
 
     def progress_hook(d: Dict[str, Any]) -> None:
         status = d.get('status')
@@ -862,94 +937,99 @@ def download_song(
     try:
         download_start = time.perf_counter()
         _emit_progress(progress_callback, {'phase': 'downloading', 'progress': 0.72})
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(download_url, download=True)
-            title = song_name or info.get('title', 'Unknown')
-            artist = artist_name or info.get('artist') or info.get('uploader', 'Unknown')
+        info = _extract_info_with_fallback(
+            ydl_opts,
+            download_url,
+            download=True,
+            process=True,
+            log_prefix=log_prefix,
+        )
+        title = song_name or info.get('title', 'Unknown')
+        artist = artist_name or info.get('artist') or info.get('uploader', 'Unknown')
 
-            # Clean up title if it contains artist name
-            title_clean = re.sub(rf'{re.escape(artist)}\s*-\s*', '', title, flags=re.IGNORECASE)
-            title_clean = re.sub(r'\s*\(.*?(official|audio|lyric|video).*?\)', '', title_clean, flags=re.IGNORECASE)
-            title_clean = title_clean.strip()
+        # Clean up title if it contains artist name
+        title_clean = re.sub(rf'{re.escape(artist)}\s*-\s*', '', title, flags=re.IGNORECASE)
+        title_clean = re.sub(r'\s*\(.*?(official|audio|lyric|video).*?\)', '', title_clean, flags=re.IGNORECASE)
+        title_clean = title_clean.strip()
 
-            safe_filename = sanitize_filename(f"{artist} - {title_clean}")
-            audio_filename = f"{info.get('id', safe_filename)}.mp3"
-            audio_path = AUDIO_DIR / audio_filename
-            source_video_id = info.get('id')
-            source_title = info.get('title')
-            source_uploader = info.get('uploader')
-            album_art_url = info.get('thumbnail')
+        safe_filename = sanitize_filename(f"{artist} - {title_clean}")
+        audio_filename = f"{info.get('id', safe_filename)}.mp3"
+        audio_path = AUDIO_DIR / audio_filename
+        source_video_id = info.get('id')
+        source_title = info.get('title')
+        source_uploader = info.get('uploader')
+        album_art_url = info.get('thumbnail')
 
-            # Get synced lyrics
-            lyrics_path = None
-            lyric_lines: List[Dict[str, Any]] = []
+        # Get synced lyrics
+        lyrics_path = None
+        lyric_lines: List[Dict[str, Any]] = []
 
+        lyrics_source = None
+        if lyric_lines_override is not None:
+            lyric_lines = lyric_lines_override
+            lyrics_source = 'provided'
+        elif skip_lyrics_fetch:
+            lyric_lines = []
             lyrics_source = None
-            if lyric_lines_override is not None:
-                lyric_lines = lyric_lines_override
-                lyrics_source = 'provided'
-            elif skip_lyrics_fetch:
-                lyric_lines = []
-                lyrics_source = None
+        else:
+            duration_hint = float(info.get('duration') or 0.0)
+            lrc_content, lyrics_source = search_synced_lyrics(
+                f"{artist} {title_clean}",
+                source_video_id,
+                duration_hint,
+                log_prefix,
+            )
+
+            if lrc_content:
+                if lyrics_source:
+                    log(f"🧾 Lyrics source: {lyrics_source}", log_prefix)
+                lyrics_filename = f"{safe_filename}.lrc"
+                lyrics_path = LYRICS_DIR / lyrics_filename
+
+                with open(lyrics_path, 'w', encoding='utf-8') as f:
+                    f.write(lrc_content)
+
+                lyric_lines = parse_lrc(lrc_content)
             else:
-                duration_hint = float(info.get('duration') or 0.0)
-                lrc_content, lyrics_source = search_synced_lyrics(
-                    f"{artist} {title_clean}",
-                    source_video_id,
-                    duration_hint,
-                    log_prefix,
-                )
+                log("⚠️  No synced lyrics found", log_prefix)
 
-                if lrc_content:
-                    if lyrics_source:
-                        log(f"🧾 Lyrics source: {lyrics_source}", log_prefix)
-                    lyrics_filename = f"{safe_filename}.lrc"
-                    lyrics_path = LYRICS_DIR / lyrics_filename
+        # Get audio duration
+        duration = duration_override or get_audio_duration(str(audio_path))
 
-                    with open(lyrics_path, 'w', encoding='utf-8') as f:
-                        f.write(lrc_content)
+        # Misalignment filter: skip songs that still look badly aligned.
+        if not skip_alignment_filter and not _is_alignment_reasonable(duration, lyric_lines):
+            log(
+                "❌ Lyrics/audio alignment looks unreliable. "
+                "Skipping this song to avoid a bad game experience.\n",
+                log_prefix
+            )
+            return None
 
-                    lyric_lines = parse_lrc(lrc_content)
-                else:
-                    log("⚠️  No synced lyrics found", log_prefix)
+        song_data = {
+            'title': title_clean,
+            'artist': artist,
+            'audioPath': str(audio_path),
+            'lyricsPath': str(lyrics_path) if lyrics_path else None,
+            'duration': duration,
+            'lyricLines': lyric_lines,
+            'lyricsSource': lyrics_source,
+            'albumArtUrl': album_art_url,
+            'sourceUrl': youtube_url,
+            'sourceVideoId': source_video_id,
+            'sourceTitle': source_title,
+            'sourceUploader': source_uploader,
+            'clipStartSec': clip_start_sec,
+            'clipEndSec': clip_end_sec,
+        }
 
-            # Get audio duration
-            duration = duration_override or get_audio_duration(str(audio_path))
+        # Save to MongoDB
+        result = songs_collection.insert_one(song_data)
+        song_data['_id'] = str(result.inserted_id)
 
-            # Misalignment filter: skip songs that still look badly aligned.
-            if not skip_alignment_filter and not _is_alignment_reasonable(duration, lyric_lines):
-                log(
-                    "❌ Lyrics/audio alignment looks unreliable. "
-                    "Skipping this song to avoid a bad game experience.\n",
-                    log_prefix
-                )
-                return None
-
-            song_data = {
-                'title': title_clean,
-                'artist': artist,
-                'audioPath': str(audio_path),
-                'lyricsPath': str(lyrics_path) if lyrics_path else None,
-                'duration': duration,
-                'lyricLines': lyric_lines,
-                'lyricsSource': lyrics_source,
-                'albumArtUrl': album_art_url,
-                'sourceUrl': youtube_url,
-                'sourceVideoId': source_video_id,
-                'sourceTitle': source_title,
-                'sourceUploader': source_uploader,
-                'clipStartSec': clip_start_sec,
-                'clipEndSec': clip_end_sec,
-            }
-
-            # Save to MongoDB
-            result = songs_collection.insert_one(song_data)
-            song_data['_id'] = str(result.inserted_id)
-
-            download_elapsed = time.perf_counter() - download_start
-            log(f"✅ Downloaded successfully! ID: {song_data['_id']} (total {download_elapsed:.2f}s)", log_prefix)
-            _emit_progress(progress_callback, {'phase': 'done', 'progress': 1.0})
-            return song_data
+        download_elapsed = time.perf_counter() - download_start
+        log(f"✅ Downloaded successfully! ID: {song_data['_id']} (total {download_elapsed:.2f}s)", log_prefix)
+        _emit_progress(progress_callback, {'phase': 'done', 'progress': 1.0})
+        return song_data
 
     except Exception as e:
         log(f"❌ Error downloading song: {e}", log_prefix)

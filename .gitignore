@@ -46,3 +46,5 @@ Thumbs.db
 musicgame.conf
 docker-compose.portainer.yml
 homeserver.conf
+
+cookies.txt

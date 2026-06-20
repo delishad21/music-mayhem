@@ -422,6 +422,12 @@ ytdl_opts = {
    - Video unavailable: Mark job as failed
    - Age-restricted: Attempt cookies/auth bypass
 
+### YouTube Cookies
+
+If yt-dlp starts failing with a message like `Sign in to confirm you’re not a bot`, export your browser cookies and place the file at `song-service/cookies.txt`.
+
+The service reads that path from `YTDLP_COOKIES_FILE` in `.env`, and the compose files mount the file into the container at `/run/secrets/yt-dlp-cookies.txt`. The downloader then copies it to a writable temp file before handing it to yt-dlp.
+
 ---
 
 ## Lyric Fetching
