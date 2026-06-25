@@ -185,21 +185,26 @@ function attachListeners(socket: Socket) {
   socket.off('playlist-preparing');
   socket.on('playlist-preparing', (data: { message?: string; queueStatus?: any; totalSongs?: number }) => {
     setGameState({
+      phase: 'waiting',
       loadingMessage: data.message,
       queueStatus: data.queueStatus,
       totalSongs: data.totalSongs ?? useStore.getState().gameState.totalSongs,
       playlistPreparing: true,
       playlistReady: false,
+      finalScores: undefined,
     });
   });
 
   socket.off('playlist-ready');
-  socket.on('playlist-ready', (data: { message?: string; queueStatus?: any }) => {
+  socket.on('playlist-ready', (data: { message?: string; queueStatus?: any; totalSongs?: number }) => {
     setGameState({
+      phase: 'waiting',
       loadingMessage: data.message,
       queueStatus: data.queueStatus,
+      totalSongs: data.totalSongs ?? useStore.getState().gameState.totalSongs,
       playlistPreparing: false,
       playlistReady: true,
+      finalScores: undefined,
     });
   });
 
@@ -723,6 +728,12 @@ export function submitAnswer(socket: Socket | null, roomCode: string, answer: st
   const activeSocket = socket || getOrCreateSocket();
   const timestamp = Date.now();
   emitWhenConnected(activeSocket, 'submit-answer', { roomCode, answer, timestamp });
+}
+
+export function updateAnswerDraft(socket: Socket | null, roomCode: string, answer: string) {
+  const activeSocket = socket || getOrCreateSocket();
+  const timestamp = Date.now();
+  emitWhenConnected(activeSocket, 'update-answer-draft', { roomCode, answer, timestamp });
 }
 
 export function sendTypingStatus(socket: Socket | null, roomCode: string, isTyping: boolean) {

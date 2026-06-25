@@ -8,6 +8,7 @@ import {
   createRoom,
   joinRoom,
   submitAnswer,
+  updateAnswerDraft,
   sendTypingStatus,
   leaveRoom,
   connectSocket,
@@ -15,7 +16,6 @@ import {
   startGame,
   stopGame,
   skipRound,
-  preparePlaylist,
   pauseGame,
   resumeGame,
 } from '@/hooks/useSocket';
@@ -120,7 +120,12 @@ export default function GamePage() {
     0,
     Math.min(1, Number(gameState.queueStatus?.nextProgress ?? (firstSongReady ? 1 : 0)))
   );
-  const totalRounds = gameState.totalSongs ?? gameState.queueStatus?.total;
+  const configuredMaxRounds = room?.settings?.maxRounds ?? maxRounds;
+  const displayedTotalSongs = gameState.totalSongs ?? gameState.queueStatus?.total;
+  const totalRounds =
+    typeof displayedTotalSongs === 'number' && typeof configuredMaxRounds === 'number' && configuredMaxRounds > 0
+      ? Math.min(displayedTotalSongs, configuredMaxRounds)
+      : displayedTotalSongs;
   const roundLabel =
     typeof gameState.round === 'number'
       ? `Round ${gameState.round}${typeof totalRounds === 'number' ? ` / ${totalRounds}` : ''}`
@@ -249,6 +254,7 @@ export default function GamePage() {
     isHost,
     shufflePlaylist,
   });
+  const hasLoadedPlaylist = playlist.length > 0 || Boolean(gameState.queueStatus?.total) || Boolean(gameState.playlistReady);
 
   const { settingsHandlers, values: settingsValues } = useRoomSettings({
     socket,
@@ -410,10 +416,13 @@ export default function GamePage() {
     }
   };
 
-  const handleAnswerChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleAnswerValueChange = (newAnswer: string) => {
     if (inputDisabled) return;
-    const newAnswer = e.target.value;
     setAnswer(newAnswer);
+
+    if (socket && room && mode === 'finish-lyrics' && isAnswerPhase) {
+      updateAnswerDraft(socket, room.code, newAnswer);
+    }
 
     if (socket && room && isAnswerPhase) {
       if (!isTyping && newAnswer.length > 0) {
@@ -421,6 +430,10 @@ export default function GamePage() {
         sendTypingStatus(socket, room.code, true);
       }
     }
+  };
+
+  const handleAnswerChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    handleAnswerValueChange(e.target.value);
   };
 
 
@@ -447,8 +460,14 @@ export default function GamePage() {
       return;
     }
     setHostError('');
-    // Re-prepare the playlist so the queue restarts cleanly.
-    preparePlaylist(socket, room.code, playlist);
+    setGameState({
+      phase: 'waiting',
+      playlistPreparing: true,
+      playlistReady: false,
+      loadingMessage: 'Loading the first song...',
+      finalScores: undefined,
+    });
+    reshufflePlaylist();
   };
 
   const handleStopGame = () => {
@@ -681,7 +700,13 @@ export default function GamePage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Game Phase Display */}
             {gameState.phase === 'waiting' && (
-              <WaitingPanel isHost={isHost} hostSetupPanel={hostSetupPanel} />
+              <WaitingPanel
+                isHost={isHost}
+                hostSetupPanel={hostSetupPanel}
+                hasPlaylist={hasLoadedPlaylist}
+                playlistPreparing={gameState.playlistPreparing || (hasLoadedPlaylist && !firstSongReady)}
+                firstSongReady={firstSongReady || gameState.playlistReady === true}
+              />
             )}
 
             {gameState.phase === 'loading' && (
@@ -740,7 +765,7 @@ export default function GamePage() {
                 isAnswerPhase={isAnswerPhase}
                 inputFlashStyle={inputFlashStyle}
                 answer={answer}
-                onAnswerChange={setAnswer}
+                onAnswerChange={handleAnswerValueChange}
                 onSubmit={handleSubmit}
                 answerInputRef={answerInputRef}
                 myAnswerStatus={myAnswerStatus}
@@ -757,7 +782,6 @@ export default function GamePage() {
                 topThree={topThree}
                 remainingScores={remainingScores}
                 isHost={isHost}
-                hostSetupPanel={hostSetupPanel}
                 onPlayAgain={handlePlayAgain}
                 onBackHome={() => router.push('/')}
               />

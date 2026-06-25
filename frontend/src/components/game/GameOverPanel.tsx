@@ -1,4 +1,3 @@
-import { ReactNode } from 'react';
 import { Trophy } from 'phosphor-react';
 import { PlayerScore } from '@/types/game';
 
@@ -7,7 +6,6 @@ interface GameOverPanelProps {
   topThree: PlayerScore[];
   remainingScores: PlayerScore[];
   isHost: boolean;
-  hostSetupPanel: ReactNode;
   onPlayAgain: () => void;
   onBackHome: () => void;
 }
@@ -17,7 +15,6 @@ export default function GameOverPanel({
   topThree,
   remainingScores,
   isHost,
-  hostSetupPanel,
   onPlayAgain,
   onBackHome,
 }: GameOverPanelProps) {
@@ -75,13 +72,6 @@ export default function GameOverPanel({
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {isHost && (
-        <div className="mt-10">
-          <h3 className="text-xl font-bold text-center mb-4">Set Up Next Game</h3>
-          {hostSetupPanel}
         </div>
       )}
 

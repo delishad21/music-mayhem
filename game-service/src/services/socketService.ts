@@ -26,6 +26,7 @@ import type { PrecomputedClip, PreparedSongMetadata } from './songQueueManager';
 export const rooms = new Map<string, Room>();
 const gameStates = new Map<string, GameState>();
 const roomAnswers = new Map<string, AnswerSubmission[]>();
+const roomAnswerDrafts = new Map<string, Map<string, AnswerSubmission>>();
 const roomLoadingIntervals = new Map<string, NodeJS.Timeout>();
 const roomLoadingTimeouts = new Map<string, NodeJS.Timeout>();
 const roomPrepIntervals = new Map<string, NodeJS.Timeout>();
@@ -66,6 +67,13 @@ function endGame(io: Server, room: Room, gameState?: GameState) {
 function shouldEndForMaxRounds(room: Room): boolean {
   const maxRounds = room.settings.maxRounds;
   return typeof maxRounds === 'number' && maxRounds > 0 && room.currentRound > maxRounds;
+}
+
+function getEffectiveTotalSongs(room: Room, playlistLength: number) {
+  const maxRounds = room.settings.maxRounds;
+  return typeof maxRounds === 'number' && maxRounds > 0
+    ? Math.min(maxRounds, playlistLength)
+    : playlistLength;
 }
 
 function normalizeRoomSettings(input: any = {}): RoomSettings {
@@ -228,6 +236,7 @@ async function cleanupRoomIfEmpty(roomCode: string) {
   rooms.delete(roomCode);
   gameStates.delete(roomCode);
   roomAnswers.delete(roomCode);
+  roomAnswerDrafts.delete(roomCode);
 }
 
 async function removePlayerFromRoom(
@@ -518,7 +527,7 @@ export function setupSocketHandlers(io: Server) {
 
         io.to(room.code).emit('playlist-preparing', {
           message: 'Loading the first song...',
-          totalSongs: data.playlist.length,
+          totalSongs: getEffectiveTotalSongs(room, data.playlist.length),
           queueStatus: queueManager.getQueueStatus(room.code),
         });
 
@@ -561,11 +570,7 @@ export function setupSocketHandlers(io: Server) {
         }
 
         // Notify all players game is starting
-        const maxRounds = room.settings.maxRounds;
-        const effectiveTotalSongs =
-          typeof maxRounds === 'number' && maxRounds > 0
-            ? Math.min(maxRounds, data.playlist.length)
-            : data.playlist.length;
+        const effectiveTotalSongs = getEffectiveTotalSongs(room, data.playlist.length);
         io.to(room.code).emit('game-starting', { totalSongs: effectiveTotalSongs });
 
         const startGameNow = async () => {
@@ -583,6 +588,7 @@ export function setupSocketHandlers(io: Server) {
             p.hasAnswered = false;
           });
           roomAnswers.delete(room.code);
+          roomAnswerDrafts.delete(room.code);
 
           const gameState = gameStates.get(room.code);
           if (gameState) {
@@ -608,7 +614,7 @@ export function setupSocketHandlers(io: Server) {
 
         io.to(room.code).emit('playlist-preparing', {
           message: 'Loading the first song...',
-          totalSongs: data.playlist.length,
+          totalSongs: effectiveTotalSongs,
           queueStatus: queueManager.getQueueStatus(room.code),
         });
 
@@ -628,6 +634,7 @@ export function setupSocketHandlers(io: Server) {
 
           io.to(latestRoom.code).emit('playlist-preparing', {
             message: 'Loading the first song...',
+            totalSongs: getEffectiveTotalSongs(latestRoom, data.playlist.length),
             queueStatus: queueManager.getQueueStatus(latestRoom.code),
           });
         }, 1000);
@@ -665,6 +672,7 @@ export function setupSocketHandlers(io: Server) {
           p.isSpectator = false; // Remove spectator status when game stops
         });
         roomAnswers.delete(room.code);
+        roomAnswerDrafts.delete(room.code);
 
         clearLoadingTimers(room.code);
         clearPrepTimers(room.code);
@@ -893,6 +901,28 @@ export function setupSocketHandlers(io: Server) {
       handleAnswer(io, socket, data);
     });
 
+    socket.on('update-answer-draft', (data: { roomCode: string; answer: string; timestamp: number }) => {
+      const room = rooms.get(data.roomCode);
+      const gameState = gameStates.get(data.roomCode);
+      if (!room || !gameState || room.gameMode !== 'finish-lyrics' || gameState.phase !== 'answering') return;
+
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player || player.isSpectator) return;
+
+      const drafts = roomAnswerDrafts.get(room.code) || new Map<string, AnswerSubmission>();
+      const answerText = data.answer.trim();
+      if (answerText) {
+        drafts.set(player.id, {
+          playerId: player.id,
+          answer: answerText,
+          timestamp: data.timestamp,
+        });
+      } else {
+        drafts.delete(player.id);
+      }
+      roomAnswerDrafts.set(room.code, drafts);
+    });
+
     socket.on('typing-status', (data: { roomCode: string; isTyping: boolean }) => {
       const room = rooms.get(data.roomCode);
       if (room) {
@@ -981,6 +1011,7 @@ export function setupSocketHandlers(io: Server) {
         rooms.delete(data.roomCode);
         gameStates.delete(data.roomCode);
         roomAnswers.delete(data.roomCode);
+        roomAnswerDrafts.delete(data.roomCode);
       } catch (error) {
         console.error('Error ending game:', error);
       }
@@ -1022,6 +1053,7 @@ function monitorPlaylistPreparation(io: Server, room: Room) {
     if (firstReady) {
       io.to(latestRoom.code).emit('playlist-ready', {
         message: 'First song is ready. You can start the game.',
+        totalSongs: getEffectiveTotalSongs(latestRoom, queueStatus?.total ?? 0),
         queueStatus,
       });
       clearPrepTimers(latestRoom.code);
@@ -1030,6 +1062,7 @@ function monitorPlaylistPreparation(io: Server, room: Room) {
 
     io.to(latestRoom.code).emit('playlist-preparing', {
       message: 'Loading songs...',
+      totalSongs: getEffectiveTotalSongs(latestRoom, queueStatus?.total ?? 0),
       queueStatus,
     });
   }, 1000);
@@ -1050,6 +1083,7 @@ function monitorPlaylistPreparation(io: Server, room: Room) {
         message: skipped > 0
           ? `Skipped ${skipped} failed song(s). First song is ready.`
           : 'First song is ready. You can start the game.',
+        totalSongs: getEffectiveTotalSongs(latestRoom, queueStatus?.total ?? 0),
         queueStatus,
       });
       return;
@@ -1242,6 +1276,7 @@ async function proceedWithRound(io: Server, room: Room, gameState: GameState) {
   // Reset player states and initialize per-round tracking
   initializeRoundTracking(room, gameState);
   roomAnswers.set(room.code, []);
+  roomAnswerDrafts.set(room.code, new Map());
 
   if (room.gameMode === 'finish-lyrics') {
     await startFinishLyricsRound(io, room, song, gameState, clip, metadata, nextSongData.index);
@@ -1564,40 +1599,30 @@ function buildStatusPayload(gameState: GameState, playerId: string) {
   };
 }
 
-function handleAnswer(io: Server, socket: Socket, data: { roomCode: string; answer: string; timestamp: number }) {
-  const room = rooms.get(data.roomCode);
-  const gameState = gameStates.get(data.roomCode);
-  if (!room || !gameState) return;
-
-  const player = room.players.find(p => p.socketId === socket.id);
-  if (!player) return;
-
+function scoreAnswer(
+  room: Room,
+  gameState: GameState,
+  player: Player,
+  answer: string,
+  timestamp: number
+) {
   const isFinishLyrics = room.gameMode === 'finish-lyrics';
   const isGuessMode = room.gameMode === 'guess-song-easy' || room.gameMode === 'guess-song-challenge';
-  const canAnswer =
-    (isFinishLyrics && gameState.phase === 'answering') ||
-    (isGuessMode && gameState.phase === 'playing-audio');
-
-  if (!canAnswer) {
-    socket.emit('error', { message: 'Answers are not accepted right now' });
-    return;
-  }
-
   const status = getOrCreatePlayerRoundStatus(gameState, player.id);
-  if (isFinishLyrics && (status.locked || status.lyricAnswered)) return;
-  if (isGuessMode && status.titleAnswered && status.artistAnswered) return;
+  if (isFinishLyrics && (status.locked || status.lyricAnswered)) return null;
+  if (isGuessMode && status.titleAnswered && status.artistAnswered) return null;
 
-  const answerText = data.answer.trim();
-  if (!answerText) return;
+  const answerText = answer.trim();
+  if (!answerText) return null;
 
   const submission: AnswerSubmission = {
     playerId: player.id,
     answer: answerText,
-    timestamp: data.timestamp,
+    timestamp,
   };
 
   const currentSong = gameState.currentSong;
-  if (!currentSong) return;
+  if (!currentSong) return null;
 
   const normalizeOptions = {
     allowChineseVariants: room.settings.allowChineseVariants !== false,
@@ -1652,9 +1677,6 @@ function handleAnswer(io: Server, socket: Socket, data: { roomCode: string; answ
   const lyricMatch = isFinishLyrics && !status.lyricAnswered;
   const anyMatch = isGuessMode ? titleMatch || artistMatch : lyricScoreData.matchedWords > 0;
 
-  // For finish-lyrics, lock the player after their first attempt to prevent brute force.
-  if (isFinishLyrics && status.locked) return;
-
   const scores = calculateAnswerScores(room, gameState, {
     titleMatch,
     artistMatchCount: newArtistMatches.length,
@@ -1703,35 +1725,70 @@ function handleAnswer(io: Server, socket: Socket, data: { roomCode: string; answ
   submission.matchedLyric = lyricScoreData.matchedWords > 0;
   submission.scoreAwarded = scoreAwarded;
 
-  const answers = roomAnswers.get(data.roomCode) || [];
+  const answers = roomAnswers.get(room.code) || [];
   answers.push(submission);
-  roomAnswers.set(data.roomCode, answers);
+  roomAnswers.set(room.code, answers);
 
-  if (!anyMatch && !isFinishLyrics) {
-    emitWrongAnswerChat(io, room, player, answerText);
+  return {
+    answerText,
+    anyMatch,
+    titleMatch,
+    artistMatch,
+    lyricMatch,
+    artistList,
+    scoreAwarded,
+    lyricScoreData,
+    status: buildStatusPayload(gameState, player.id),
+  };
+}
+
+function handleAnswer(io: Server, socket: Socket, data: { roomCode: string; answer: string; timestamp: number }) {
+  const room = rooms.get(data.roomCode);
+  const gameState = gameStates.get(data.roomCode);
+  if (!room || !gameState) return;
+
+  const player = room.players.find(p => p.socketId === socket.id);
+  if (!player) return;
+
+  const isFinishLyrics = room.gameMode === 'finish-lyrics';
+  const isGuessMode = room.gameMode === 'guess-song-easy' || room.gameMode === 'guess-song-challenge';
+  const canAnswer =
+    (isFinishLyrics && gameState.phase === 'answering') ||
+    (isGuessMode && gameState.phase === 'playing-audio');
+
+  if (!canAnswer) {
+    socket.emit('error', { message: 'Answers are not accepted right now' });
+    return;
+  }
+
+  const result = scoreAnswer(room, gameState, player, data.answer, data.timestamp);
+  if (!result) return;
+
+  if (!result.anyMatch && !isFinishLyrics) {
+    emitWrongAnswerChat(io, room, player, result.answerText);
   }
 
   socket.emit('answer-feedback', {
-    correct: anyMatch,
-    field: lyricMatch ? 'lyric' : titleMatch && artistMatch ? 'both' : titleMatch ? 'title' : artistMatch ? 'artist' : 'none',
-    scoreAwarded,
+    correct: result.anyMatch,
+    field: result.lyricMatch ? 'lyric' : result.titleMatch && result.artistMatch ? 'both' : result.titleMatch ? 'title' : result.artistMatch ? 'artist' : 'none',
+    scoreAwarded: result.scoreAwarded,
     totalScore: player.score,
-    status: buildStatusPayload(gameState, player.id),
+    status: result.status,
     message: isFinishLyrics
-      ? lyricScoreData.matchedWords > 0
-        ? `Matched ${lyricScoreData.matchedWords}/${lyricScoreData.totalWords} words`
+      ? result.lyricScoreData.matchedWords > 0
+        ? `Matched ${result.lyricScoreData.matchedWords}/${result.lyricScoreData.totalWords} words`
         : 'No matching words'
-      : anyMatch
+      : result.anyMatch
         ? undefined
         : 'Incorrect answer',
   });
 
   io.to(room.code).emit('player-answer-status', {
     playerId: player.id,
-    titleAnswered: status.titleAnswered,
-    artistMatchedCount: status.artistMatches?.length ?? 0,
-    artistTotal: status.artistTotal ?? (artistList.length || 0),
-    lyricAnswered: status.lyricAnswered,
+    titleAnswered: result.status.title.answered,
+    artistMatchedCount: result.status.artist.matchedCount ?? 0,
+    artistTotal: result.status.artist.total ?? (result.artistList.length || 0),
+    lyricAnswered: result.status.lyric.answered,
   });
 
   // Auto-advance when all active players have answered.
@@ -1805,11 +1862,26 @@ function calculateAnswerScores(
 }
 
 async function endAnsweringPhase(io: Server, room: Room, gameState: GameState) {
-    if (gameState.phase === 'showing-results') {
-      return;
-    }
+  if (gameState.phase === 'showing-results') {
+    return;
+  }
   // Stop any scheduled clip/answer timers from continuing the round UI.
   clearRoundTimers(room.code);
+
+  if (room.gameMode === 'finish-lyrics') {
+    const drafts = roomAnswerDrafts.get(room.code);
+    if (drafts) {
+      for (const player of room.players) {
+        if (player.isSpectator) continue;
+        const status = getOrCreatePlayerRoundStatus(gameState, player.id);
+        if (status.locked || status.lyricAnswered) continue;
+        const draft = drafts.get(player.id);
+        if (!draft?.answer.trim()) continue;
+        scoreAnswer(room, gameState, player, draft.answer, draft.timestamp);
+      }
+    }
+  }
+
   gameState.phase = 'showing-results';
   gameState.resultsStartedAt = Date.now();
 
@@ -1875,6 +1947,7 @@ async function endAnsweringPhase(io: Server, room: Room, gameState: GameState) {
   }
 
   roomAnswers.delete(room.code);
+  roomAnswerDrafts.delete(room.code);
 
   scheduleResultsAdvance(io, room, gameState, room.settings.resultsDelayMs ?? 7000);
 }
