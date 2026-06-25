@@ -16,3 +16,17 @@ The app supports solo or multiplayer modes with session creation. Players can up
 - **Frontend**: `frontend/README.md`
 - **Game Service**: `game-service/README.md`
 - **Song Service**: `song-service/README.md`
+
+## Finish the Lyrics Gameplay
+
+https://github.com/user-attachments/assets/e5493a91-b924-4a2d-b190-b07b4ab3fbe8
+
+## Guess the Song Gameplay
+
+https://github.com/user-attachments/assets/7965e5f2-04a7-492f-87b1-b8f3fe07a7f6
+
+## Challenge Gameplay
+
+https://github.com/user-attachments/assets/a85d8d21-c642-4db6-b48e-e198d00ba6b8
+
+
