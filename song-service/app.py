@@ -9,6 +9,7 @@ import threading
 import uuid
 import logging
 from flask import Flask, request, jsonify
+from flask import Response, stream_with_context
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -74,6 +75,9 @@ def api_download_song():
     clip_end_sec = data.get('clipEndSec')
     skip_alignment_filter = data.get('skipAlignmentFilter')
     skip_lyrics_fetch = data.get('skipLyricsFetch', False)
+    skip_preferred_lookup = data.get('skipPreferredLookup', False)
+    preserve_original_audio = data.get('preserveOriginalAudio', False)
+    force_keyframes_at_cuts = data.get('forceKeyframesAtCuts', True)
 
     if skip_alignment_filter is None:
         skip_alignment_filter = clip_start_sec is not None and clip_end_sec is not None
@@ -115,24 +119,53 @@ def api_download_song():
                 log_prefix = job_id[:8]
 
             update_progress({'phase': 'preparing', 'progress': 0.02})
+            def is_cancelled():
+                with job_lock:
+                    return bool(download_jobs.get(job_id, {}).get('cancelled'))
+
             if url:
-                result = download_with_preferred_audio(
-                    url,
-                    song_name,
-                    artist,
-                    lyric_lines_override=lyric_lines,
-                    duration_override=duration,
-                    clip_start_sec=clip_start_sec,
-                    clip_end_sec=clip_end_sec,
-                    skip_alignment_filter=bool(skip_alignment_filter),
-                    skip_lyrics_fetch=bool(skip_lyrics_fetch),
-                    progress_callback=update_progress,
-                    log_prefix=log_prefix,
-                )
+                if skip_preferred_lookup:
+                    result = download_song(
+                        url,
+                        song_name,
+                        artist,
+                        lyric_lines_override=lyric_lines,
+                        duration_override=duration,
+                        clip_start_sec=clip_start_sec,
+                        clip_end_sec=clip_end_sec,
+                        skip_alignment_filter=bool(skip_alignment_filter),
+                        skip_lyrics_fetch=bool(skip_lyrics_fetch),
+                        preserve_original_audio=bool(preserve_original_audio),
+                        force_keyframes_at_cuts=bool(force_keyframes_at_cuts),
+                        progress_callback=update_progress,
+                        cancel_check=is_cancelled,
+                        log_prefix=log_prefix,
+                    )
+                else:
+                    result = download_with_preferred_audio(
+                        url,
+                        song_name,
+                        artist,
+                        lyric_lines_override=lyric_lines,
+                        duration_override=duration,
+                        clip_start_sec=clip_start_sec,
+                        clip_end_sec=clip_end_sec,
+                        skip_alignment_filter=bool(skip_alignment_filter),
+                        skip_lyrics_fetch=bool(skip_lyrics_fetch),
+                        preserve_original_audio=bool(preserve_original_audio),
+                        force_keyframes_at_cuts=bool(force_keyframes_at_cuts),
+                        progress_callback=update_progress,
+                        cancel_check=is_cancelled,
+                        log_prefix=log_prefix,
+                    )
             else:
                 result = download_from_search(song_name, artist, log_prefix=log_prefix)
 
             with job_lock:
+                if download_jobs.get(job_id, {}).get('cancelled'):
+                    download_jobs[job_id]['status'] = 'cancelled'
+                    download_jobs[job_id]['error'] = 'Download cancelled'
+                    return
                 if result:
                     download_jobs[job_id]['status'] = 'completed'
                     download_jobs[job_id]['songId'] = str(result.get('_id'))
@@ -143,8 +176,12 @@ def api_download_song():
                     download_jobs[job_id]['error'] = 'Download failed or no synced lyrics'
         except Exception as e:
             with job_lock:
-                download_jobs[job_id]['status'] = 'failed'
-                download_jobs[job_id]['error'] = str(e)
+                if download_jobs.get(job_id, {}).get('cancelled'):
+                    download_jobs[job_id]['status'] = 'cancelled'
+                    download_jobs[job_id]['error'] = 'Download cancelled'
+                else:
+                    download_jobs[job_id]['status'] = 'failed'
+                    download_jobs[job_id]['error'] = str(e)
 
     thread = threading.Thread(target=download_task)
     thread.daemon = True
@@ -224,6 +261,53 @@ def get_job_status(job_id):
         return jsonify({'error': 'Job not found'}), 404
 
     return jsonify(job)
+
+
+@app.route('/job-events/<job_id>', methods=['GET'])
+def stream_job_events(job_id):
+    """
+    Stream job progress as Server-Sent Events.
+    """
+    def generate():
+        last_payload = None
+        while True:
+            with job_lock:
+                job = download_jobs.get(job_id)
+                if job:
+                    payload = dict(job)
+                else:
+                    payload = {'status': 'failed', 'error': 'Job not found'}
+
+            encoded = json.dumps(payload, sort_keys=True)
+            if encoded != last_payload:
+                last_payload = encoded
+                yield f"data: {encoded}\n\n"
+
+            if payload.get('status') in ('completed', 'failed', 'cancelled'):
+                break
+
+            import time
+            time.sleep(0.25)
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
+
+@app.route('/job/<job_id>', methods=['DELETE'])
+def cancel_job(job_id):
+    """
+    Mark a running job as cancelled. In-progress yt-dlp hooks will abort when possible;
+    otherwise completion is ignored by the job task.
+    """
+    with job_lock:
+        job = download_jobs.get(job_id)
+        if not job:
+            return jsonify({'error': 'Job not found'}), 404
+        if job.get('status') in ('completed', 'failed', 'cancelled'):
+            return jsonify({'success': True, 'status': job.get('status')})
+        job['cancelled'] = True
+        job['status'] = 'cancelled'
+        job['error'] = 'Download cancelled'
+    return jsonify({'success': True, 'status': 'cancelled'})
 
 
 @app.route('/parse-spotify-playlist', methods=['POST'])

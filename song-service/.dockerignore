@@ -5,6 +5,7 @@ __pycache__
 .Python
 .env
 .env.local
+cookies.txt
 .git
 .gitignore
 songs/audio/*.mp3

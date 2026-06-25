@@ -1,8 +1,13 @@
 FROM python:3.11-slim
 
-# Install system dependencies (keep this minimal for faster builds)
+# Install system dependencies and Deno for yt-dlp's YouTube JS challenge solving.
 RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
     ffmpeg \
+    unzip \
+    && curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh \
+    && /usr/local/bin/deno --version \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

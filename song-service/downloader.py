@@ -6,6 +6,7 @@ Downloads songs from YouTube with synced lyrics
 
 import os
 import re
+import copy
 import subprocess
 import shutil
 import requests
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Any, Callable, Tuple
 import time
 import yt_dlp
+from yt_dlp.utils import download_range_func
 import syncedlyrics
 from syncedlyrics import Lyrics, TargetType, Musixmatch, Lrclib, NetEase, Megalobiz, Genius
 try:
@@ -39,6 +41,7 @@ mongo_client = MongoClient(MONGODB_URI)
 db = mongo_client['music_game']
 songs_collection = db['songs']
 ProgressCallback = Callable[[Dict[str, Any]], None]
+CancelCheck = Callable[[], bool]
 LOG_TZ = os.getenv('LOG_TZ', 'local').strip().lower()
 USE_YT_MUSIC = os.getenv('USE_YT_MUSIC', '1').strip().lower() not in ('0', 'false', 'no')
 YT_MUSIC_ONLY = os.getenv('YT_MUSIC_ONLY', '1').strip().lower() not in ('0', 'false', 'no')
@@ -65,6 +68,33 @@ YT_MUSIC_NEGATIVE_MARKERS = [
 
 YTDLP_COOKIES_FILE = os.getenv('YTDLP_COOKIES_FILE', '').strip()
 YTDLP_COOKIES_CACHE = Path(os.getenv('YTDLP_COOKIES_CACHE', '/tmp/music-mayhem-ytdlp-cookies.txt'))
+YTDLP_JS_RUNTIME = os.getenv('YTDLP_JS_RUNTIME', 'deno').strip().lower()
+YTDLP_JS_RUNTIME_PATH = os.getenv('YTDLP_JS_RUNTIME_PATH', '').strip()
+YTDLP_POT_PROVIDER_URL = os.getenv('YTDLP_POT_PROVIDER_URL', '').strip()
+YTDLP_PLAYER_CLIENTS = [
+    client.strip()
+    for client in os.getenv('YTDLP_PLAYER_CLIENTS', 'mweb,web_safari,web_embedded,tv').split(',')
+    if client.strip()
+]
+YTDLP_REMOTE_COMPONENTS = [
+    component.strip()
+    for component in os.getenv('YTDLP_REMOTE_COMPONENTS', 'ejs:github').split(',')
+    if component.strip()
+]
+YTDLP_FALLBACK_PLAYER_CLIENTS = [
+    ['web_safari', 'web_embedded', 'tv'],
+    ['android_vr', 'web_embedded', 'tv'],
+    ['web_embedded', 'tv'],
+]
+YTDLP_RETRYABLE_EXTRACT_ERRORS = [
+    'Requested format is not available',
+    'Sign in to confirm',
+    'LOGIN_REQUIRED',
+]
+
+
+class DownloadCancelled(RuntimeError):
+    pass
 
 def _ts() -> str:
     if LOG_TZ == 'utc':
@@ -578,6 +608,12 @@ def _seconds_to_timecode(seconds: float) -> str:
     return f"{hours:d}:{minutes:02d}:{secs:06.3f}"
 
 
+def _section_suffix(start_sec: float, end_sec: float) -> str:
+    start_ms = int(round(max(0.0, float(start_sec)) * 1000))
+    end_ms = int(round(max(0.0, float(end_sec)) * 1000))
+    return f"clip_{start_ms}_{end_ms}"
+
+
 def _normalize_download_url(url: str) -> str:
     """
     Prefer youtube.com URLs for yt-dlp to avoid some auth-gated music.youtube.com pages.
@@ -606,12 +642,22 @@ def _apply_ydlp_reliability_opts(
     ydl_opts.setdefault('geo_bypass', True)
     ydl_opts.setdefault('nocheckcertificate', True)
     ydl_opts.setdefault('format_sort', ['abr', 'asr', 'ext'])
-    ydl_opts.setdefault('extractor_args', {
-        'youtube': {
-            # Try more stable clients first.
-            'player_client': ['android', 'web'],
-        }
-    })
+    if YTDLP_JS_RUNTIME:
+        runtime_config: Dict[str, Any] = {}
+        if YTDLP_JS_RUNTIME_PATH:
+            runtime_config['path'] = YTDLP_JS_RUNTIME_PATH
+        ydl_opts.setdefault('js_runtimes', {YTDLP_JS_RUNTIME: runtime_config})
+    if YTDLP_REMOTE_COMPONENTS:
+        ydl_opts.setdefault('remote_components', YTDLP_REMOTE_COMPONENTS)
+    extractor_args = copy.deepcopy(ydl_opts.get('extractor_args') or {})
+    if YTDLP_PLAYER_CLIENTS:
+        youtube_args = extractor_args.setdefault('youtube', {})
+        youtube_args.setdefault('player_client', YTDLP_PLAYER_CLIENTS)
+    if YTDLP_POT_PROVIDER_URL:
+        provider_args = extractor_args.setdefault('youtubepot-bgutilhttp', {})
+        provider_args.setdefault('base_url', [YTDLP_POT_PROVIDER_URL])
+    if extractor_args:
+        ydl_opts.setdefault('extractor_args', extractor_args)
 
     if YTDLP_COOKIES_FILE:
         cookie_path = Path(YTDLP_COOKIES_FILE).expanduser()
@@ -635,31 +681,38 @@ def _extract_info_with_fallback(
     process: bool = True,
     log_prefix: Optional[str] = None,
 ) -> Dict[str, Any]:
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            return ydl.extract_info(url, download=download, process=process)
-    except Exception as exc:
-        if 'Requested format is not available' not in str(exc):
-            raise
+    attempts: List[Tuple[str, Dict[str, Any]]] = [('primary yt-dlp settings', copy.deepcopy(ydl_opts))]
 
-        fallback_opts = dict(ydl_opts)
-        fallback_opts.pop('extractor_args', None)
+    for clients in YTDLP_FALLBACK_PLAYER_CLIENTS:
+        fallback_opts = copy.deepcopy(ydl_opts)
         fallback_opts.pop('format_sort', None)
-        log('⚠️ Retrying yt-dlp with a simpler format selector', log_prefix)
-        try:
-            with yt_dlp.YoutubeDL(fallback_opts) as ydl:
-                return ydl.extract_info(url, download=download, process=process)
-        except Exception as fallback_exc:
-            if 'Requested format is not available' not in str(fallback_exc):
-                raise
-            if 'cookiefile' not in fallback_opts:
-                raise
+        extractor_args = copy.deepcopy(fallback_opts.get('extractor_args') or {})
+        youtube_args = extractor_args.setdefault('youtube', {})
+        youtube_args['player_client'] = clients
+        fallback_opts['extractor_args'] = extractor_args
+        attempts.append((f"alternate YouTube clients: {','.join(clients)}", fallback_opts))
 
-            no_cookie_opts = dict(fallback_opts)
+    if 'cookiefile' in ydl_opts:
+        for label, opts in list(attempts):
+            no_cookie_opts = copy.deepcopy(opts)
             no_cookie_opts.pop('cookiefile', None)
-            log('⚠️ Retrying yt-dlp without cookies after format lookup failed', log_prefix)
-            with yt_dlp.YoutubeDL(no_cookie_opts) as ydl:
+            attempts.append((f"{label} without cookies", no_cookie_opts))
+
+    last_extract_error: Optional[Exception] = None
+    for idx, (label, opts) in enumerate(attempts):
+        if idx > 0:
+            log(f"⚠️ Retrying yt-dlp with {label}", log_prefix)
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=download, process=process)
+        except Exception as exc:
+            if not any(marker in str(exc) for marker in YTDLP_RETRYABLE_EXTRACT_ERRORS):
+                raise
+            last_extract_error = exc
+
+    if last_extract_error:
+        raise last_extract_error
+    raise RuntimeError('Unable to extract YouTube media')
 
 
 def _emit_progress(progress_callback: Optional[ProgressCallback], payload: Dict[str, Any]) -> None:
@@ -684,6 +737,16 @@ def get_audio_duration(file_path: str) -> float:
         return float(result.stdout.strip())
     except:
         return 0.0
+
+
+def _find_downloaded_audio_path(video_id: Optional[str], fallback_path: Path, section_suffix: Optional[str] = None) -> Path:
+    if video_id:
+        pattern = f"{video_id}__{section_suffix}.*" if section_suffix else f"{video_id}.*"
+        matches = sorted(AUDIO_DIR.glob(pattern), key=lambda path: path.stat().st_mtime, reverse=True)
+        for match in matches:
+            if match.is_file() and not match.name.endswith(('.part', '.ytdl')):
+                return match
+    return fallback_path
 
 
 def find_audio_track(song_name: str, artist: str, log_prefix: Optional[str] = None) -> Optional[str]:
@@ -886,7 +949,10 @@ def download_song(
     clip_end_sec: Optional[float] = None,
     skip_alignment_filter: bool = False,
     skip_lyrics_fetch: bool = False,
+    preserve_original_audio: bool = False,
+    force_keyframes_at_cuts: bool = True,
     progress_callback: Optional[ProgressCallback] = None,
+    cancel_check: Optional[CancelCheck] = None,
     log_prefix: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
@@ -899,22 +965,32 @@ def download_song(
     else:
         log(f"🎬 Final download URL: {youtube_url}", log_prefix)
 
+    section_suffix = (
+        _section_suffix(clip_start_sec, clip_end_sec)
+        if clip_start_sec is not None and clip_end_sec is not None and clip_end_sec > clip_start_sec
+        else None
+    )
+    output_name = f"%(id)s__{section_suffix}.%(ext)s" if section_suffix else "%(id)s.%(ext)s"
+
     ydl_opts = {
-        'format': 'bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
+        'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
         # Use the YouTube ID for a stable, predictable filename that matches
         # what we store in the database and serve from the backend.
-        'outtmpl': str(AUDIO_DIR / '%(id)s.%(ext)s'),
+        'outtmpl': str(AUDIO_DIR / output_name),
         'quiet': True,
         'no_warnings': True,
     }
+    if not preserve_original_audio:
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
     ydl_opts = _apply_ydlp_reliability_opts(ydl_opts, log_prefix)
 
     def progress_hook(d: Dict[str, Any]) -> None:
+        if cancel_check and cancel_check():
+            raise DownloadCancelled('Download cancelled')
         status = d.get('status')
         if status == 'downloading':
             downloaded = float(d.get('downloaded_bytes') or 0)
@@ -931,10 +1007,13 @@ def download_song(
     if clip_start_sec is not None and clip_end_sec is not None and clip_end_sec > clip_start_sec:
         start_tc = _seconds_to_timecode(clip_start_sec)
         end_tc = _seconds_to_timecode(clip_end_sec)
-        ydl_opts['download_sections'] = [f"*{start_tc}-{end_tc}"]
-        ydl_opts['force_keyframes_at_cuts'] = True
+        ydl_opts['download_ranges'] = download_range_func(None, [(clip_start_sec, clip_end_sec)])
+        ydl_opts['force_keyframes_at_cuts'] = force_keyframes_at_cuts
+        log(f"✂️ Downloading section {start_tc}-{end_tc} (force_keyframes={force_keyframes_at_cuts})", log_prefix)
 
     try:
+        if cancel_check and cancel_check():
+            raise DownloadCancelled('Download cancelled')
         download_start = time.perf_counter()
         _emit_progress(progress_callback, {'phase': 'downloading', 'progress': 0.72})
         info = _extract_info_with_fallback(
@@ -944,6 +1023,8 @@ def download_song(
             process=True,
             log_prefix=log_prefix,
         )
+        if cancel_check and cancel_check():
+            raise DownloadCancelled('Download cancelled')
         title = song_name or info.get('title', 'Unknown')
         artist = artist_name or info.get('artist') or info.get('uploader', 'Unknown')
 
@@ -953,9 +1034,18 @@ def download_song(
         title_clean = title_clean.strip()
 
         safe_filename = sanitize_filename(f"{artist} - {title_clean}")
-        audio_filename = f"{info.get('id', safe_filename)}.mp3"
-        audio_path = AUDIO_DIR / audio_filename
         source_video_id = info.get('id')
+        fallback_ext = 'mp3' if not preserve_original_audio else info.get('ext', 'm4a')
+        fallback_name = (
+            f"{source_video_id or safe_filename}__{section_suffix}.{fallback_ext}"
+            if section_suffix
+            else f"{source_video_id or safe_filename}.{fallback_ext}"
+        )
+        audio_path = _find_downloaded_audio_path(
+            source_video_id,
+            AUDIO_DIR / fallback_name,
+            section_suffix,
+        )
         source_title = info.get('title')
         source_uploader = info.get('uploader')
         album_art_url = info.get('thumbnail')
@@ -1031,6 +1121,17 @@ def download_song(
         _emit_progress(progress_callback, {'phase': 'done', 'progress': 1.0})
         return song_data
 
+    except DownloadCancelled as e:
+        source_video_id = _extract_youtube_id(download_url)
+        if source_video_id:
+            for path in AUDIO_DIR.glob(f"{source_video_id}.*"):
+                try:
+                    if path.is_file():
+                        path.unlink()
+                except Exception:
+                    pass
+        log(f"⚠️ Download cancelled: {e}", log_prefix)
+        return None
     except Exception as e:
         log(f"❌ Error downloading song: {e}", log_prefix)
         return None
@@ -1057,7 +1158,10 @@ def download_with_preferred_audio(
     clip_end_sec: Optional[float] = None,
     skip_alignment_filter: bool = False,
     skip_lyrics_fetch: bool = False,
+    preserve_original_audio: bool = False,
+    force_keyframes_at_cuts: bool = True,
     progress_callback: Optional[ProgressCallback] = None,
+    cancel_check: Optional[CancelCheck] = None,
     log_prefix: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
@@ -1079,7 +1183,10 @@ def download_with_preferred_audio(
                     clip_end_sec=clip_end_sec,
                     skip_alignment_filter=skip_alignment_filter,
                     skip_lyrics_fetch=skip_lyrics_fetch,
+                    preserve_original_audio=preserve_original_audio,
+                    force_keyframes_at_cuts=force_keyframes_at_cuts,
                     progress_callback=progress_callback,
+                    cancel_check=cancel_check,
                     log_prefix=log_prefix,
                 )
             if YT_MUSIC_ONLY and not preferred_url:
@@ -1098,7 +1205,10 @@ def download_with_preferred_audio(
         clip_end_sec=clip_end_sec,
         skip_alignment_filter=skip_alignment_filter,
         skip_lyrics_fetch=skip_lyrics_fetch,
+        preserve_original_audio=preserve_original_audio,
+        force_keyframes_at_cuts=force_keyframes_at_cuts,
         progress_callback=progress_callback,
+        cancel_check=cancel_check,
         log_prefix=log_prefix,
     )
 

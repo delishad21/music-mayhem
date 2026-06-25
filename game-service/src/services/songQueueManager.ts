@@ -43,9 +43,10 @@ const queueVersions = new Map<string, number>();
 
 const SONG_SERVICE_URL = process.env.SONG_SERVICE_URL || 'http://song-service:5001';
 const TARGET_BUFFER_COUNT = 5; // Keep 5 songs ready/processing ahead
-const MAX_PARALLEL_DOWNLOADS = 5; // Allow parallel prep/download
+const MAX_PARALLEL_DOWNLOADS = Math.max(1, Number(process.env.MAX_PARALLEL_DOWNLOADS || 2));
 const CLIP_BUFFER_BEFORE_SEC = 5;
 const CLIP_BUFFER_AFTER_SEC = 2;
+const RESULTS_TAIL_BUFFER_SEC = 0.75;
 
 export interface PreparedSongMetadata {
   title: string;
@@ -64,6 +65,8 @@ export interface PreparedSongMetadata {
 export interface PrecomputedClip {
   clipStartSec: number;
   clipEndSec: number;
+  mediaStartSec: number;
+  mediaEndSec: number;
   playbackStartSec: number;
   playbackStopSec?: number;
   playbackDurationSec?: number;
@@ -210,6 +213,11 @@ async function prepareAndDownloadSong(
       return;
     }
 
+    const latestQueue = queues.get(roomCode);
+    if (!latestQueue || latestQueue.version !== expectedVersion) {
+      return;
+    }
+
     song.metadata = metadata;
 
     const clip = computeClip(metadata, gameMode, settings);
@@ -231,8 +239,13 @@ async function prepareAndDownloadSong(
         artist: metadata.artist,
         lyricLines: clip.lyricLinesShifted,
         duration: clip.clipDurationSec,
+        clipStartSec: clip.mediaStartSec,
+        clipEndSec: clip.mediaEndSec,
         skipAlignmentFilter: true,
         skipLyricsFetch: gameMode !== 'finish-lyrics',
+        skipPreferredLookup: true,
+        preserveOriginalAudio: true,
+        forceKeyframesAtCuts: false,
       },
       { timeout: 60000 }
     );
@@ -240,13 +253,108 @@ async function prepareAndDownloadSong(
     const jobId = response.data.jobId;
     song.jobId = jobId;
 
-    // Poll for completion
-    await pollJobStatus(roomCode, index, jobId, expectedVersion);
+    try {
+      await streamJobStatus(roomCode, index, jobId, expectedVersion);
+    } catch (streamError: any) {
+      console.warn(`⚠️ Job event stream failed for song ${index + 1}, falling back to polling:`, streamError?.message || streamError);
+      await pollJobStatus(roomCode, index, jobId, expectedVersion);
+    }
   } catch (error: any) {
     console.error(`❌ Download failed for song ${index + 1}:`, error.message);
     song.status = 'failed';
     song.error = error.message;
   }
+}
+
+async function cancelSongJob(jobId: string) {
+  try {
+    await axios.delete(`${SONG_SERVICE_URL}/job/${jobId}`, { timeout: 5000 });
+  } catch (err: any) {
+    console.error('Error cancelling song job:', err.message);
+  }
+}
+
+async function streamJobStatus(
+  roomCode: string,
+  index: number,
+  jobId: string,
+  expectedVersion: number
+): Promise<void> {
+  const response = await axios.get(`${SONG_SERVICE_URL}/job-events/${jobId}`, {
+    responseType: 'stream',
+    timeout: 70000,
+  });
+
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    let settled = false;
+
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      response.data.destroy?.();
+      fn();
+    };
+
+    const handlePayload = (payload: any) => {
+      const currentQueue = queues.get(roomCode);
+      if (!currentQueue || currentQueue.version !== expectedVersion) {
+        void cancelSongJob(jobId);
+        settle(resolve);
+        return;
+      }
+
+      const song = currentQueue.songs[index];
+      if (!song) {
+        void cancelSongJob(jobId);
+        settle(resolve);
+        return;
+      }
+
+      const progress = Number(payload.progress);
+      if (!Number.isNaN(progress)) {
+        song.progress = Math.max(0, Math.min(1, progress));
+      }
+
+      if (payload.status === 'completed') {
+        song.status = 'ready';
+        song.songId = payload.songId;
+        song.progress = 1;
+        console.log(`✅ Song ${index + 1} ready: ${song.songId}`);
+        settle(resolve);
+      } else if (payload.status === 'failed' || payload.status === 'cancelled') {
+        song.status = 'failed';
+        song.error = payload.error || (payload.status === 'cancelled' ? 'Download cancelled' : 'Download failed');
+        console.log(`❌ Song ${index + 1} failed: ${song.error}`);
+        settle(resolve);
+      }
+    };
+
+    response.data.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString('utf8');
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      for (const event of events) {
+        const dataLine = event
+          .split('\n')
+          .find(line => line.startsWith('data: '));
+        if (!dataLine) continue;
+        try {
+          handlePayload(JSON.parse(dataLine.slice(6)));
+        } catch (error) {
+          settle(() => reject(error));
+        }
+      }
+    });
+
+    response.data.on('error', (error: Error) => {
+      settle(() => reject(error));
+    });
+
+    response.data.on('end', () => {
+      settle(() => reject(new Error('Job event stream ended before completion')));
+    });
+  });
 }
 
 /**
@@ -282,9 +390,9 @@ async function pollJobStatus(
         song.progress = 1;
         console.log(`✅ Song ${index + 1} ready: ${song.songId}`);
         return;
-      } else if (status === 'failed') {
+      } else if (status === 'failed' || status === 'cancelled') {
         song.status = 'failed';
-        song.error = response.data.error || 'Download failed';
+        song.error = response.data.error || (status === 'cancelled' ? 'Download cancelled' : 'Download failed');
         console.log(`❌ Song ${index + 1} failed: ${song.error}`);
         return;
       }
@@ -359,6 +467,7 @@ function computeClip(
   settings: RoomSettings
 ): PrecomputedClip | null {
   const duration = metadata.duration;
+  const resultsTailSec = (settings.resultsDelayMs ?? 7000) / 1000 + CLIP_BUFFER_AFTER_SEC + RESULTS_TAIL_BUFFER_SEC;
   const convertMode = settings.convertChineseLyrics ?? 'none';
   const lyricLines = (metadata.lyricLines || []).map(line => ({
     ...line,
@@ -374,17 +483,15 @@ function computeClip(
     const selection = selectRandomLyric(lyricLines, hangmanOptions);
     if (!selection) return null;
 
-    const startTime = selection.startTime;
-    const stopTime = selection.targetLine.time;
+    const originalPlaybackStartSec = selection.startTime;
+    const originalPlaybackStopSec = selection.targetLine.time;
+    const mediaStartSec = Math.max(0, originalPlaybackStartSec - CLIP_BUFFER_BEFORE_SEC);
+    const mediaEndSec = Math.min(duration, originalPlaybackStopSec + resultsTailSec);
+    const playbackStartSec = Math.max(0, originalPlaybackStartSec - mediaStartSec);
+    const playbackStopSec = Math.max(playbackStartSec, originalPlaybackStopSec - mediaStartSec);
+    const clipDurationSec = Math.max(0, mediaEndSec - mediaStartSec);
 
-    // Full-song download: keep absolute timing.
-    const clipStartSec = 0;
-    const clipEndSec = duration;
-    const playbackStartSec = startTime;
-    const playbackStopSec = stopTime;
-    const clipDurationSec = duration;
-
-    const lyricLinesShifted = lyricLines;
+    const lyricLinesShifted = shiftLyricLines(lyricLines, mediaStartSec, mediaEndSec);
     const clipLyricLines = lyricLinesShifted.filter(
       line => line.time >= playbackStartSec && line.time < playbackStopSec
     );
@@ -402,14 +509,16 @@ function computeClip(
 
     console.log(
       `🎯 [finish-lyrics] ${metadata.artist} - ${metadata.title} | ` +
-      `target=${selection.targetLine.time.toFixed(1)}s start=${startTime.toFixed(1)}s | ` +
-      `clip=${clipStartSec.toFixed(1)}-${clipEndSec.toFixed(1)}s | ` +
+      `target=${selection.targetLine.time.toFixed(1)}s start=${originalPlaybackStartSec.toFixed(1)}s | ` +
+      `clip=${mediaStartSec.toFixed(1)}-${mediaEndSec.toFixed(1)}s | ` +
       `playback=${playbackStartSec.toFixed(1)}-${playbackStopSec.toFixed(1)}s`
     );
 
     return {
-      clipStartSec,
-      clipEndSec,
+      clipStartSec: mediaStartSec,
+      clipEndSec: mediaEndSec,
+      mediaStartSec,
+      mediaEndSec,
       playbackStartSec,
       playbackStopSec,
       targetLyric: selection.targetLine.text,
@@ -425,19 +534,18 @@ function computeClip(
     const randomStart = settings.randomStart !== false;
     const snippet = getRandomSnippet(clipDuration, duration, randomStart, lyricLines);
 
-    const startTime = snippet.startTime;
-    const stopTime = snippet.startTime + snippet.duration;
-    // Full-song download: keep absolute timing.
-    const clipStartSec = 0;
-    const clipEndSec = duration;
-    const playbackStartSec = startTime;
-    const clipDurationSec = duration;
-    const lyricLinesShifted = lyricLines;
+    const originalPlaybackStartSec = snippet.startTime;
+    const originalPlaybackStopSec = snippet.startTime + snippet.duration;
+    const mediaStartSec = Math.max(0, originalPlaybackStartSec - CLIP_BUFFER_BEFORE_SEC);
+    const mediaEndSec = Math.min(duration, originalPlaybackStopSec + resultsTailSec);
+    const playbackStartSec = Math.max(0, originalPlaybackStartSec - mediaStartSec);
+    const clipDurationSec = Math.max(0, mediaEndSec - mediaStartSec);
+    const lyricLinesShifted = shiftLyricLines(lyricLines, mediaStartSec, mediaEndSec);
 
     console.log(
       `🎯 [guess-easy] ${metadata.artist} - ${metadata.title} | ` +
-      `start=${startTime.toFixed(1)}s dur=${snippet.duration.toFixed(1)}s | ` +
-      `clip=${clipStartSec.toFixed(1)}-${clipEndSec.toFixed(1)}s`
+      `start=${originalPlaybackStartSec.toFixed(1)}s dur=${snippet.duration.toFixed(1)}s | ` +
+      `clip=${mediaStartSec.toFixed(1)}-${mediaEndSec.toFixed(1)}s`
     );
 
     const { cleanTitle, featuredArtists } = extractFeaturedArtistsFromTitle(metadata.title);
@@ -445,8 +553,10 @@ function computeClip(
     const hangmanOptions = getHangmanOptionsFromSettings(settings);
 
     return {
-      clipStartSec,
-      clipEndSec,
+      clipStartSec: mediaStartSec,
+      clipEndSec: mediaEndSec,
+      mediaStartSec,
+      mediaEndSec,
       playbackStartSec,
       playbackDurationSec: snippet.duration,
       hangman: formatGuessHangman(cleanTitle, artists, hangmanOptions),
@@ -456,18 +566,19 @@ function computeClip(
   }
 
   if (gameMode === 'guess-song-challenge') {
-    const { startTime, clips } = getChallengeClips(duration, lyricLines);
-    // Full-song download: keep absolute timing.
-    const clipStartSec = 0;
-    const clipEndSec = duration;
-    const playbackStartSec = startTime;
-    const clipDurationSec = duration;
-    const lyricLinesShifted = lyricLines;
+    const { startTime: originalPlaybackStartSec, clips } = getChallengeClips(duration, lyricLines);
+    const maxChallengeDuration = Math.max(...clips);
+    const originalPlaybackStopSec = originalPlaybackStartSec + maxChallengeDuration;
+    const mediaStartSec = Math.max(0, originalPlaybackStartSec - CLIP_BUFFER_BEFORE_SEC);
+    const mediaEndSec = Math.min(duration, originalPlaybackStopSec + resultsTailSec);
+    const playbackStartSec = Math.max(0, originalPlaybackStartSec - mediaStartSec);
+    const clipDurationSec = Math.max(0, mediaEndSec - mediaStartSec);
+    const lyricLinesShifted = shiftLyricLines(lyricLines, mediaStartSec, mediaEndSec);
 
     console.log(
       `🎯 [guess-challenge] ${metadata.artist} - ${metadata.title} | ` +
-      `start=${startTime.toFixed(1)}s clips=${clips.join(',')} | ` +
-      `clip=${clipStartSec.toFixed(1)}-${clipEndSec.toFixed(1)}s`
+      `start=${originalPlaybackStartSec.toFixed(1)}s clips=${clips.join(',')} | ` +
+      `clip=${mediaStartSec.toFixed(1)}-${mediaEndSec.toFixed(1)}s`
     );
 
     const { cleanTitle, featuredArtists } = extractFeaturedArtistsFromTitle(metadata.title);
@@ -475,8 +586,10 @@ function computeClip(
     const hangmanOptions = getHangmanOptionsFromSettings(settings);
 
     return {
-      clipStartSec,
-      clipEndSec,
+      clipStartSec: mediaStartSec,
+      clipEndSec: mediaEndSec,
+      mediaStartSec,
+      mediaEndSec,
       playbackStartSec,
       hangman: formatGuessHangman(cleanTitle, artists, hangmanOptions),
       challengeClips: clips,
@@ -679,8 +792,15 @@ export async function cleanupQueue(roomCode: string) {
   const queue = queues.get(roomCode);
   if (!queue) return;
 
-  // Delete all remaining songs via Flask API
+  const invalidatedVersion = (queueVersions.get(roomCode) || queue.version) + 1;
+  queueVersions.set(roomCode, invalidatedVersion);
+  queue.version = invalidatedVersion;
+
+  // Cancel in-flight jobs and delete all remaining songs via Flask API.
   for (const song of queue.songs) {
+    if (song.jobId && (song.status === 'preparing' || song.status === 'downloading')) {
+      await cancelSongJob(song.jobId);
+    }
     if (song.songId && song.status === 'ready') {
       try {
         await axios.delete(`${SONG_SERVICE_URL}/song/${song.songId}`);
