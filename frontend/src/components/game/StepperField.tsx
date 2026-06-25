@@ -18,21 +18,21 @@ export default function StepperField({
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
       <span className="font-semibold">{label}</span>
-      <div className="flex items-center gap-3 px-2 py-1 rounded-lg border" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex items-center gap-2 rounded-[3px] border p-1" style={{ borderColor: 'var(--border)' }}>
         <button
           type="button"
           onClick={() => onChange(clampValue(value - 1))}
-          className="w-8 h-8 flex items-center justify-center rounded-md border"
+          className="flex h-8 w-8 items-center justify-center rounded-[3px] border transition-colors hover:bg-[var(--card-hover)]"
           style={{ borderColor: 'var(--border)' }}
           disabled={value <= min}
         >
           -
         </button>
-        <div className="min-w-[36px] text-center font-semibold">{value}</div>
+        <div className="min-w-[36px] text-center font-mono font-semibold" style={{ color: 'var(--mode-accent)' }}>{value}</div>
         <button
           type="button"
           onClick={() => onChange(clampValue(value + 1))}
-          className="w-8 h-8 flex items-center justify-center rounded-md border"
+          className="flex h-8 w-8 items-center justify-center rounded-[3px] border transition-colors hover:bg-[var(--card-hover)]"
           style={{ borderColor: 'var(--border)' }}
           disabled={value >= max}
         >

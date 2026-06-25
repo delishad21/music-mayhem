@@ -1,3 +1,6 @@
+import { GearSix } from 'phosphor-react';
+import PanelHeading from './game/PanelHeading';
+
 interface RoomSettingsModalProps {
   isPrivateRoom: boolean;
   roomPassword: string;
@@ -18,17 +21,17 @@ export default function RoomSettingsModal({
   onCancel,
 }: RoomSettingsModalProps) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="card max-w-md w-full">
-        <h2 className="text-2xl font-bold mb-2">Room Settings</h2>
-        <p className="opacity-70 mb-6">
-          Configure your room before starting the session.
-        </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
+      <div className="modal-panel w-full max-w-md">
+        <div className="eyebrow mb-2">New Room</div>
+        <PanelHeading className="mb-2" icon={<GearSix size={16} weight="duotone" />} title="Room Settings" />
+
 
         <div className="space-y-4">
           <label className="flex items-center gap-3">
             <input
               type="checkbox"
+              className="accent-[var(--primary)]"
               checked={isPrivateRoom}
               onChange={(e) => onTogglePrivate(e.target.checked)}
             />

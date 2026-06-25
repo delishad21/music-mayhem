@@ -47,6 +47,7 @@ export interface RoomSettings {
 export interface RoomListItem {
   code: string;
   gameMode: GameMode;
+  isActive?: boolean;
   playerCount: number;
   hostName?: string;
 }

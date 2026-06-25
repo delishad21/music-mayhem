@@ -1,4 +1,6 @@
 import { GameMode } from "@/types/game";
+import { Question } from 'phosphor-react';
+import PanelHeading from './PanelHeading';
 
 interface HowToPlayCardProps {
   mode: GameMode;
@@ -10,9 +12,9 @@ export default function HowToPlayCard({
   lyricAnswerTimeSec = 20,
 }: HowToPlayCardProps) {
   return (
-    <div className="card">
-      <h3 className="text-xl font-bold mb-4">How to Play</h3>
-      <div className="text-sm space-y-2 opacity-80">
+    <div className="game-segment">
+      <PanelHeading className="mb-4" icon={<Question size={16} weight="duotone" />} title="How to Play" />
+      <div className="space-y-2 text-sm opacity-80">
         {mode === "finish-lyrics" && (
           <>
             <p>• Listen to the 15-second clip</p>

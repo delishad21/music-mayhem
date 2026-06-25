@@ -1,5 +1,6 @@
 import { MusicNote } from 'phosphor-react';
-import { GameMode } from '@/types/game';
+import { GameMode, MyAnswerStatus } from '@/types/game';
+import PanelHeading from './PanelHeading';
 
 interface HangmanSection {
   label: string;
@@ -46,6 +47,7 @@ interface PlayingAudioPanelProps {
   clipLyricLines?: Array<{ time: number; text: string }>;
   currentClipIndex: number;
   roundLabel?: string;
+  myAnswerStatus?: MyAnswerStatus;
 }
 
 export default function PlayingAudioPanel({
@@ -60,23 +62,18 @@ export default function PlayingAudioPanel({
   clipLyricLines,
   currentClipIndex,
   roundLabel,
+  myAnswerStatus,
 }: PlayingAudioPanelProps) {
   return (
-    <div className="card text-center py-16">
+    <div className="game-segment game-segment-tint text-center py-12">
       {roundLabel && (
         <div className="flex justify-center mb-6">
-          <div
-            className="px-4 py-1 rounded-full text-xs font-semibold uppercase tracking-widest"
-            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--card-hover)' }}
-          >
-            {roundLabel}
-          </div>
+          <div className="mode-chip">{roundLabel}</div>
         </div>
       )}
-      <div className="flex justify-center mb-6">
-        <MusicNote size={48} weight="duotone" />
+      <div className="mb-4 flex justify-center">
+        <PanelHeading icon={<MusicNote size={16} weight="duotone" />} title="Listen Carefully" />
       </div>
-      <h2 className="text-3xl font-bold mb-4">Listen carefully...</h2>
       {audioNeedsGesture && (
         <div className="mb-4">
           <button type="button" onClick={onRequestPlay} className="btn px-6">
@@ -88,7 +85,7 @@ export default function PlayingAudioPanel({
 
       {mode === 'guess-song-challenge' && clipPhase && (
         <div className="space-y-2">
-          <p className="text-xl opacity-80">Clip {clipPhase} of 4</p>
+          <p className="eyebrow">Clip {clipPhase} of 4</p>
           {audioTotal > 0 && (
             <div>
               {(() => {
@@ -102,19 +99,19 @@ export default function PlayingAudioPanel({
                     ? nextClipIn / gapSeconds
                     : 0
                   : audioTimeLeft / audioTotal;
-                const barColor = isBetweenClips ? '#ef4444' : 'var(--primary)';
+                const barColor = isBetweenClips ? '#ef4444' : 'var(--mode-accent)';
                 const label = isBetweenClips
                   ? `Next clip in ${nextClipIn.toFixed(1)}s`
                   : `${audioTimeLeft.toFixed(1)}s`;
 
                 return (
                   <>
-                    <div className="text-3xl font-bold" style={{ color: barColor }}>
+                    <div className="display-heading text-5xl font-extrabold" style={{ color: barColor }}>
                       {label}
                     </div>
-                    <div className="w-full bg-gray-300 dark:bg-gray-700 h-2 rounded-full mt-2 overflow-hidden">
+                    <div className="progress-track mt-2">
                       <div
-                        className="h-full transition-all duration-100"
+                        className="progress-fill duration-100"
                         style={{
                           width: `${Math.max(0, Math.min(1, progress)) * 100}%`,
                           backgroundColor: barColor,
@@ -131,7 +128,7 @@ export default function PlayingAudioPanel({
 
       {mode === 'finish-lyrics' && (
         <div className="mt-8">
-          <div className="text-sm uppercase tracking-widest opacity-60 mb-3">Lyrics</div>
+          <div className="eyebrow mb-3">Lyrics</div>
           <div className="mx-auto max-w-2xl text-left">
             {(() => {
               const lines = clipLyricLines || [];
@@ -187,6 +184,32 @@ export default function PlayingAudioPanel({
         <div className="mt-6 space-y-4">
           {(() => {
             const sections = parseHangmanSections(hangman);
+            const titleAnswer = myAnswerStatus?.title.answered ? myAnswerStatus.title.correctAnswer : undefined;
+            const artistAnswer = myAnswerStatus?.artist.answered ? myAnswerStatus.artist.correctAnswer : undefined;
+            let artistRevealed = false;
+            const revealedSections = sections
+              .map(section => {
+                const normalizedLabel = section.label.toLowerCase();
+                const isTitleSection =
+                  normalizedLabel === 'song' ||
+                  normalizedLabel === 'title' ||
+                  normalizedLabel.includes('song name') ||
+                  normalizedLabel.includes('song title');
+                const isArtistSection = normalizedLabel.startsWith('artist');
+
+                if (titleAnswer && isTitleSection) {
+                  return { ...section, value: titleAnswer };
+                }
+                if (artistAnswer && isArtistSection) {
+                  if (artistRevealed) {
+                    return null;
+                  }
+                  artistRevealed = true;
+                  return { ...section, label: 'Artist', value: artistAnswer };
+                }
+                return section;
+              })
+              .filter((section): section is HangmanSection => section !== null);
             const hasLabels = sections.some(section => section.label);
             if (!hasLabels) {
               return <div className="hangman-text whitespace-pre-line">{hangman}</div>;
@@ -194,12 +217,12 @@ export default function PlayingAudioPanel({
 
             return (
               <div
-                className="rounded-xl border p-5 space-y-4"
+                className="rounded-[3px] border p-5 space-y-4"
                 style={{ borderColor: 'var(--border)' }}
               >
-                {sections.map((section, index) => (
+                {revealedSections.map((section, index) => (
                   <div key={`${section.label}-${index}`} className="space-y-1">
-                    <div className="text-xs uppercase tracking-widest opacity-60">
+                    <div className="eyebrow">
                       {section.label || 'Answer'}
                     </div>
                     <div className="font-mono text-2xl md:text-3xl tracking-wide break-words">
@@ -215,16 +238,16 @@ export default function PlayingAudioPanel({
             <div>
               <div
                 className="text-3xl font-bold"
-                style={{ color: audioTimeLeft < 3 ? '#ef4444' : 'var(--primary)' }}
+                style={{ color: audioTimeLeft < 3 ? '#ef4444' : 'var(--mode-accent)' }}
               >
                 {audioTimeLeft.toFixed(1)}s
               </div>
-              <div className="w-full bg-gray-300 dark:bg-gray-700 h-2 rounded-full mt-2 overflow-hidden">
+              <div className="progress-track mt-2">
                 <div
-                  className="h-full transition-all duration-100"
+                  className="progress-fill duration-100"
                   style={{
                     width: `${(audioTimeLeft / audioTotal) * 100}%`,
-                    backgroundColor: audioTimeLeft < 3 ? '#ef4444' : 'var(--primary)',
+                    backgroundColor: audioTimeLeft < 3 ? '#ef4444' : 'var(--mode-accent)',
                   }}
                 />
               </div>

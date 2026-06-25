@@ -41,32 +41,31 @@ export default function AnswerPhasePanel({
   myAnswerStatus,
 }: AnswerPhasePanelProps) {
   const showTimer = gameState.answerTime && gameState.phase === 'answering';
+  const answerProgress =
+    showTimer && gameState.answerTime
+      ? Math.max(0, Math.min(100, (timeLeft / (gameState.answerTime / 1000)) * 100))
+      : 0;
 
   return (
-    <div className="card py-12">
+    <div className="game-segment game-segment-tint py-8">
       {roundLabel && (
         <div className="flex justify-center mb-6">
-          <div
-            className="px-4 py-1 rounded-full text-xs font-semibold uppercase tracking-widest"
-            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--card-hover)' }}
-          >
-            {roundLabel}
-          </div>
+          <div className="mode-chip">{roundLabel}</div>
         </div>
       )}
       <div className="text-center mb-6">
         <h2
-          className="text-2xl font-extrabold uppercase tracking-[0.22em] mb-4"
+          className="display-heading mb-4 text-4xl font-extrabold uppercase leading-none"
           style={{ color: accentColor }}
         >
           {modeLabel}
         </h2>
         {mode === 'finish-lyrics' && (
           <div className="mx-auto max-w-2xl text-center mb-6">
-            <div className="text-sm uppercase tracking-widest opacity-60 mb-2">
-              Previous Line:
+            <div className="eyebrow mb-2">
+              Previous Line
             </div>
-            <div className="text-xl leading-relaxed opacity-70">
+            <div className="rounded-[3px] border px-4 py-3 text-xl leading-relaxed opacity-80" style={{ borderColor: 'var(--border)' }}>
               {(gameState.clipLyricLines || []).slice(-1)[0]?.text || '—'}
             </div>
           </div>
@@ -74,24 +73,26 @@ export default function AnswerPhasePanel({
 
         {displayHangman && mode === 'finish-lyrics' && (
           <div className="mx-auto max-w-2xl text-center mb-6">
-            <div className="text-sm uppercase tracking-widest opacity-60 mb-2">
-              Next Line:
+            <div className="eyebrow mb-2">
+              Next Line
             </div>
-            <div className="hangman-text whitespace-pre-line">{displayHangman}</div>
+            <div className="rounded-[3px] border px-4 py-5" style={{ borderColor: 'color-mix(in srgb, var(--mode-accent) 35%, var(--border))' }}>
+              <div className="hangman-text whitespace-pre-line">{displayHangman}</div>
+            </div>
           </div>
         )}
 
         {showTimer && (
           <div className="mb-6">
-            <div className="text-5xl font-bold" style={{ color: timeLeft < 3 ? '#ef4444' : 'var(--primary)' }}>
+            <div className="display-heading text-6xl font-extrabold" style={{ color: timeLeft < 3 ? '#ef4444' : 'var(--mode-accent)' }}>
               {timeLeft.toFixed(1)}s
             </div>
-            <div className="w-full bg-gray-300 dark:bg-gray-700 h-2 rounded-full mt-2 overflow-hidden">
+            <div className="progress-track mt-2">
               <div
-                className="h-full transition-all duration-100"
+                className="progress-fill duration-100"
                 style={{
-                  width: `${(timeLeft / (gameState.answerTime ? gameState.answerTime / 1000 : 1)) * 100}%`,
-                  backgroundColor: timeLeft < 3 ? '#ef4444' : 'var(--primary)',
+                  width: `${answerProgress}%`,
+                  backgroundColor: timeLeft < 3 ? '#ef4444' : 'var(--mode-accent)',
                 }}
               />
             </div>
@@ -103,71 +104,34 @@ export default function AnswerPhasePanel({
         className={
           mode === 'finish-lyrics'
             ? 'space-y-6 max-w-3xl mx-auto'
-            : 'grid md:grid-cols-2 gap-6 max-w-3xl mx-auto'
+            : 'max-w-3xl mx-auto'
         }
       >
-        <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)' }}>
-          <div className="font-bold mb-3">Your Progress</div>
-
-          {mode === 'finish-lyrics' ? (
+        {mode === 'finish-lyrics' && (
+          <div className="rounded-[3px] border p-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}>
+            <div className="eyebrow mb-3">Your Progress</div>
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={!!myAnswerStatus?.lyric.answered} readOnly />
                   <span>Lyric</span>
                 </label>
-                <span className="font-semibold" style={{ color: 'var(--primary)' }}>
+                <span className="font-mono font-semibold" style={{ color: 'var(--mode-accent)' }}>
                   {myAnswerStatus?.lyric.score ?? 0}
                 </span>
               </div>
             </div>
-          ) : (
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={!!myAnswerStatus?.title.answered} readOnly />
-                  <span>Song Title</span>
-                </label>
-                <span className="font-semibold" style={{ color: 'var(--primary)' }}>
-                  {myAnswerStatus?.title.score ?? 0}
-                </span>
-              </div>
-              {myAnswerStatus?.title.answered && myAnswerStatus.title.correctAnswer && (
-                <div className="text-xs opacity-70">✓ {myAnswerStatus.title.correctAnswer}</div>
-              )}
-
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={!!myAnswerStatus?.artist.answered} readOnly />
-                  <span>
-                    Artist
-                    {typeof myAnswerStatus?.artist.total === 'number' && (
-                      <span className="opacity-70">
-                        {' '}
-                        ({myAnswerStatus.artist.matchedCount ?? 0}/{myAnswerStatus.artist.total})
-                      </span>
-                    )}
-                  </span>
-                </label>
-                <span className="font-semibold" style={{ color: 'var(--primary)' }}>
-                  {myAnswerStatus?.artist.score ?? 0}
-                </span>
-              </div>
-              {myAnswerStatus?.artist.answered && myAnswerStatus.artist.correctAnswer && (
-                <div className="text-xs opacity-70">✓ {myAnswerStatus.artist.correctAnswer}</div>
-              )}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {mode === 'finish-lyrics' ? (
           <div className="space-y-3">
             {hasCompletedRound ? (
-              <div className="p-3 rounded-lg border border-green-500 text-green-500 font-semibold text-sm text-center">
+              <div className="p-3 rounded-[3px] border border-green-500 text-green-500 font-semibold text-sm text-center">
                 ✓ Answer submitted.
               </div>
             ) : isSpectator ? (
-              <div className="p-3 rounded-lg border border-yellow-500 text-yellow-600 font-semibold text-sm text-center">
+              <div className="p-3 rounded-[3px] border border-yellow-500 text-yellow-600 font-semibold text-sm text-center">
                 Spectating this round.
               </div>
             ) : (
@@ -204,11 +168,11 @@ export default function AnswerPhasePanel({
         ) : (
           <div className="flex flex-col justify-center">
             {hasCompletedRound ? (
-              <div className="p-3 rounded-lg border border-green-500 text-green-500 font-semibold text-sm text-center">
+              <div className="p-3 rounded-[3px] border border-green-500 text-green-500 font-semibold text-sm text-center">
                 ✓ You have completed this round.
               </div>
             ) : isSpectator ? (
-              <div className="p-3 rounded-lg border border-yellow-500 text-yellow-600 font-semibold text-sm text-center">
+              <div className="p-3 rounded-[3px] border border-yellow-500 text-yellow-600 font-semibold text-sm text-center">
                 Spectating this round.
               </div>
             ) : (

@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { CheckCircle, Crown, User, XCircle, WarningCircle } from 'phosphor-react';
+import { useEffect, useMemo } from 'react';
+import { animate, motion, useMotionValue, useTransform } from 'framer-motion';
+import { CheckCircle, Crown, Users, User, XCircle, WarningCircle } from 'phosphor-react';
 import { GameMode, Player } from '@/types/game';
+import PanelHeading from './PanelHeading';
 
 interface PlayersPanelProps {
   players: Player[];
@@ -18,15 +19,40 @@ interface PlayersPanelProps {
   showStatusBorders?: boolean;
 }
 
+function AnimatedScore({ value }: { value: number }) {
+  const scoreValue = useMotionValue(value);
+  const roundedScore = useTransform(scoreValue, latest => Math.round(latest).toLocaleString());
+
+  useEffect(() => {
+    const controls = animate(scoreValue, value, {
+      duration: 0.55,
+      ease: 'easeOut',
+    });
+
+    return () => controls.stop();
+  }, [scoreValue, value]);
+
+  return <motion.span>{roundedScore}</motion.span>;
+}
+
 export default function PlayersPanel({ players, mode, playerAnswerStatus, showStatusBorders = true }: PlayersPanelProps) {
   const sortedPlayers = useMemo(() => {
-    return [...players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    return [...players].sort((a, b) => {
+      const scoreDelta = (b.score ?? 0) - (a.score ?? 0);
+      if (scoreDelta !== 0) return scoreDelta;
+      return a.joinedAt - b.joinedAt;
+    });
   }, [players]);
 
   return (
-    <div className="card">
-      <h3 className="text-xl font-bold mb-4">Players ({players.length})</h3>
-      <div className="flex flex-col gap-3">
+    <div className="game-segment">
+      <PanelHeading
+        className="mb-4"
+        icon={<Users size={16} weight="duotone" />}
+        title="Players"
+        action={<span className="mode-chip">{players.length}</span>}
+      />
+      <div className="flex flex-col gap-1.5">
         {sortedPlayers.map((player) => {
           const displayName = player.displayName || player.username;
           const status = playerAnswerStatus?.[player.id];
@@ -57,30 +83,31 @@ export default function PlayersPanel({ players, mode, playerAnswerStatus, showSt
           return (
             <motion.div
               key={player.id}
-              layout
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className="flex justify-between items-center gap-3 p-3 rounded-lg border-2"
+              layout="position"
+              initial={false}
+              transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.8 }}
+              className="flex items-center justify-between gap-2 border px-2.5 py-2"
               style={{
-                backgroundColor: 'var(--card-hover)',
+                backgroundColor: 'color-mix(in srgb, var(--mode-accent) 7%, var(--card))',
                 borderColor: showStatusBorders ? borderColor : 'rgba(255, 255, 255, 0.35)',
               }}
             >
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <span className={player.isHost ? 'text-xl' : ''}>
+                  <span style={{ color: player.isHost ? 'var(--mode-accent)' : undefined }}>
                     {player.isHost ? (
                       <Crown size={18} weight="duotone" />
                     ) : (
                       <User size={18} weight="duotone" />
                     )}
                   </span>
-                  <span className="font-semibold">{displayName}</span>
+                  <span className="truncate font-semibold">{displayName}</span>
                   {player.isSpectator && (
-                    <span className="text-xs px-2 py-0.5 rounded-full border border-yellow-500 text-yellow-600">
+                    <span className="text-xs px-2 py-0.5 rounded-[3px] border border-yellow-500 text-yellow-600">
                       Spectating
                     </span>
                   )}
-                  {player.isTyping && <span className="text-sm opacity-60">typing...</span>}
+                  {player.isTyping && <span className="text-xs italic opacity-60">typing...</span>}
                 </div>
 
                 {showStatusBorders && showFinishLyrics && (
@@ -123,8 +150,8 @@ export default function PlayersPanel({ players, mode, playerAnswerStatus, showSt
                 )}
               </div>
 
-              <span className="font-bold self-center" style={{ color: 'var(--primary)' }}>
-                {player.score}
+              <span className="self-center font-mono text-lg font-bold" style={{ color: 'var(--mode-accent)' }}>
+                <AnimatedScore value={player.score ?? 0} />
               </span>
             </motion.div>
           );

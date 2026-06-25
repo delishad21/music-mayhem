@@ -1,8 +1,10 @@
 import { CSSProperties, FormEvent, RefObject, useEffect, useRef } from 'react';
-import { ArrowRight } from 'phosphor-react';
+import { ArrowRight, ChatCircleText } from 'phosphor-react';
 import { ChatMessage } from '@/types/game';
+import PanelHeading from './PanelHeading';
 
 interface ChatPanelProps {
+  title?: string;
   chatMessages: ChatMessage[];
   isAnswerPhase: boolean;
   answer: string;
@@ -18,6 +20,7 @@ interface ChatPanelProps {
 }
 
 export default function ChatPanel({
+  title = 'Chat',
   chatMessages,
   isAnswerPhase,
   answer,
@@ -81,16 +84,18 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="lg:col-span-1">
-      <div className="card h-[calc(100vh-12rem)] flex flex-col" style={{ minHeight: 520 }}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold">Chat</h3>
-          <div className="text-xs opacity-60">Wrong attempts are public</div>
-        </div>
+    <div>
+      <div className="game-segment flex h-[calc(100vh-12rem)] flex-col" style={{ minHeight: 520 }}>
+        <PanelHeading
+          className="mb-4"
+          icon={<ChatCircleText size={16} weight="duotone" />}
+          title={title}
+          action={<div className="eyebrow">Public misses</div>}
+        />
 
         <div
           ref={messageContainerRef}
-          className="flex-1 overflow-auto rounded-xl border p-3 space-y-2"
+          className="flex-1 space-y-2 overflow-auto rounded-[3px] border p-3"
           style={{ borderColor: 'var(--border)' }}
         >
           {chatMessages.length === 0 && (
@@ -101,13 +106,13 @@ export default function ChatPanel({
           {chatMessages.map((msg) => (
             <div
               key={msg.id}
-              className="p-3 rounded-lg border"
+              className="rounded-[3px] border p-3"
               style={{
                 borderColor: 'rgba(239, 68, 68, 0.4)',
                 backgroundColor: 'rgba(239, 68, 68, 0.08)',
               }}
             >
-              <div className="text-xs uppercase tracking-wider opacity-60 mb-1">
+              <div className="eyebrow mb-1">
                 {msg.displayName || msg.username}
               </div>
               <div className="font-semibold text-red-500">{msg.text}</div>

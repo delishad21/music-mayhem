@@ -2,6 +2,8 @@ import { ReactNode } from "react";
 
 interface GameModeCardProps {
   title: string;
+  tagline?: string;
+  tag?: string;
   description: string;
   accentColor: string;
   hoverTint: string;
@@ -11,6 +13,8 @@ interface GameModeCardProps {
 
 export default function GameModeCard({
   title,
+  tagline,
+  tag,
   description,
   accentColor,
   hoverTint,
@@ -20,25 +24,38 @@ export default function GameModeCard({
   return (
     <button
       onClick={onClick}
-      className="card mode-card cursor-pointer text-center p-8"
+      className="group separator-panel mode-card cursor-pointer text-left"
       style={{
-        borderColor: accentColor,
+        borderColor: `color-mix(in srgb, ${accentColor} 38%, var(--border))`,
+        background: 'var(--card)',
+        ["--mode-accent" as any]: accentColor,
         ["--card-hover-tint" as any]: hoverTint,
       }}
     >
-      <div
-        className="flex items-center justify-center gap-3 mb-5"
-        style={{ color: accentColor }}
-      >
-        {icon}
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div
+          className="flex h-10 w-10 items-center justify-center border"
+          style={{
+            color: accentColor,
+            background: hoverTint,
+            borderColor: `color-mix(in srgb, ${accentColor} 44%, transparent)`,
+          }}
+        >
+          {icon}
+        </div>
       </div>
       <div
-        className="text-lg font-extrabold uppercase tracking-[0.22em] mb-3"
+        className="display-heading mb-1 text-2xl font-extrabold uppercase leading-none"
         style={{ color: accentColor }}
       >
         {title}
       </div>
-      <p className="text-lg opacity-80">{description}</p>
+      {tagline ? (
+        <div className="mb-4 text-sm italic" style={{ color: accentColor }}>
+          {tagline}
+        </div>
+      ) : null}
+      <p className="text-sm leading-relaxed opacity-70">{description}</p>
     </button>
   );
 }

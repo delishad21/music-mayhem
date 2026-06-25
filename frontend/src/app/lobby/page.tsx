@@ -6,9 +6,10 @@ import { useStore } from '@/store/useStore';
 import ThemeToggle from '@/components/ThemeToggle';
 import { RoomListItem } from '@/types/game';
 import { roomsAPI } from '@/lib/api';
-import { Headphones, MicrophoneStage, MusicNote, Trophy } from 'phosphor-react';
+import { Hash, Headphones, ListBullets, MicrophoneStage, MusicNote, Trophy } from 'phosphor-react';
 import AuthRequiredModal from '@/components/AuthRequiredModal';
 import { signIn } from 'next-auth/react';
+import PanelHeading from '@/components/game/PanelHeading';
 
 export default function LobbyPage() {
   const router = useRouter();
@@ -139,7 +140,7 @@ export default function LobbyPage() {
   const getGameModeIcon = (mode: string) => {
     switch (mode) {
       case 'finish-lyrics':
-        return <MicrophoneStage size={18} weight="duotone" style={{ color: 'var(--amber-gold)' }} />;
+        return <MicrophoneStage size={18} weight="duotone" style={{ color: 'var(--azure-blue)' }} />;
       case 'guess-song-easy':
         return <Headphones size={18} weight="duotone" style={{ color: 'var(--medium-jungle)' }} />;
       case 'guess-song-challenge':
@@ -176,14 +177,15 @@ export default function LobbyPage() {
           >
             ← Back to Home
           </button>
-          <h1 className="text-4xl font-bold" style={{ color: 'var(--primary)' }}>
+          <h1 className="display-heading flex items-center gap-3 text-4xl font-extrabold uppercase leading-none" style={{ color: 'var(--primary)' }}>
+            <MusicNote className="block flex-shrink-0" size={30} weight="duotone" />
             Active Lobbies
           </h1>
         </div>
 
         {/* Join by Code */}
-        <div className="card mb-8">
-          <h2 className="text-2xl font-bold mb-4">Join by Room Code</h2>
+        <div className="separator-panel mb-8">
+          <PanelHeading className="mb-4" icon={<Hash size={16} weight="duotone" />} title="Join by Room Code" />
           <form onSubmit={handleJoinByCode} className="flex gap-4">
             <div className="flex-1 grid md:grid-cols-2 gap-3">
               <input
@@ -207,7 +209,7 @@ export default function LobbyPage() {
             </button>
           </form>
           {joinError && (
-            <div className="mt-3 p-3 rounded-lg bg-red-500 bg-opacity-20 text-red-500 border border-red-500 text-sm">
+            <div className="mt-3 p-3 rounded-[3px] bg-red-500 bg-opacity-20 text-red-500 border border-red-500 text-sm">
               {joinError}
             </div>
           )}
@@ -215,19 +217,24 @@ export default function LobbyPage() {
 
         {/* Room List */}
         <div>
-          <h2 className="text-2xl font-bold mb-4">Browse Rooms</h2>
+          <PanelHeading className="mb-4" icon={<ListBullets size={16} weight="duotone" />} title="Browse Rooms" />
           {rooms.length === 0 ? (
-            <div className="card text-center py-12 opacity-60">
+            <div className="separator-panel py-12 text-center opacity-60">
               No active rooms available. Create one from the home page!
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {rooms.map((room) => (
-                <div key={room.code} className="card flex justify-between items-center">
+                <div key={room.code} className="separator-panel flex items-center justify-between">
                   <div>
                     <div className="text-xl font-bold mb-1 flex items-center gap-2">
                       {getGameModeIcon(room.gameMode)}
                       {getGameModeLabel(room.gameMode)}
+                      {room.isActive && (
+                        <span className="mode-chip text-[10px] uppercase tracking-[0.08em]">
+                          In progress
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm opacity-60">
                       Room Code: <span className="font-mono font-bold">{room.code}</span> •

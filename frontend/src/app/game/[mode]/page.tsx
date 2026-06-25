@@ -84,7 +84,7 @@ export default function GamePage() {
   const [resultsDelaySec, setResultsDelaySec] = useState(7);
   const [guessClipDurationSec, setGuessClipDurationSec] = useState(15);
   const [lyricAnswerTimeSec, setLyricAnswerTimeSec] = useState(20);
-  const [maxRounds, setMaxRounds] = useState(0);
+  const [maxRounds, setMaxRounds] = useState(15);
   const [allowJoinInProgress, setAllowJoinInProgress] = useState(true);
   const [allowChineseVariants, setAllowChineseVariants] = useState(true);
   const [shufflePlaylist, setShufflePlaylist] = useState(true);
@@ -95,7 +95,7 @@ export default function GamePage() {
   const [revealChinese, setRevealChinese] = useState(false);
   const [revealVietnamese, setRevealVietnamese] = useState(true);
   const [revealSpanish, setRevealSpanish] = useState(true);
-  const [volume, setVolume] = useState(0.7);
+  const [volume, setVolume] = useState(0.5);
   const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
@@ -147,13 +147,13 @@ export default function GamePage() {
   const modeTheme = (() => {
     switch (mode) {
       case 'finish-lyrics':
-        return { accent: 'var(--amber-gold)', tint: 'rgba(251, 188, 5, 0.08)' };
+        return { accent: 'var(--azure-blue)' };
       case 'guess-song-easy':
-        return { accent: 'var(--medium-jungle)', tint: 'rgba(52, 168, 83, 0.08)' };
+        return { accent: 'var(--medium-jungle)' };
       case 'guess-song-challenge':
-        return { accent: 'var(--cinnabar)', tint: 'rgba(234, 67, 53, 0.08)' };
+        return { accent: 'var(--cinnabar)' };
       default:
-        return { accent: 'var(--azure-blue)', tint: 'rgba(66, 133, 244, 0.08)' };
+        return { accent: 'var(--azure-blue)' };
     }
   })();
 
@@ -568,19 +568,19 @@ export default function GamePage() {
 
   return (
     <div
-      className="min-h-screen w-full p-6 md:p-8"
+      className="template-shell min-h-screen w-full px-4 py-5 md:px-8 md:py-7"
       style={{
-        backgroundColor: modeTheme.tint,
+        ['--mode-accent' as any]: modeTheme.accent,
         ['--card-border' as any]: modeTheme.accent,
       }}
     >
       <audio ref={audioElementRef} />
 
-      <div className="w-full">
+      <div className="mx-auto w-full max-w-[1440px]">
         {gameState.toast ? (
           <div className="fixed top-6 left-1/2 z-50 -translate-x-1/2">
             <div
-              className="rounded-md px-4 py-2 text-sm font-semibold shadow-lg"
+              className="rounded-[3px] px-4 py-2 text-sm font-semibold shadow-lg"
               style={{
                 backgroundColor:
                   gameState.toast.variant === 'error'
@@ -606,6 +606,7 @@ export default function GamePage() {
               <label className="flex items-center gap-2 text-sm opacity-80">
                 <SpeakerHigh size={16} weight="duotone" />
                 <input
+                  className="accent-[var(--mode-accent)]"
                   type="range"
                   min={0}
                   max={1}
@@ -613,13 +614,12 @@ export default function GamePage() {
                   value={volume}
                   onChange={(e) => setVolume(Number(e.target.value))}
                 />
-                <span className="w-10 text-right">{Math.round(volume * 100)}%</span>
               </label>
               {isHost && room.isActive && (
                 <button
                   type="button"
                   onClick={handleTogglePause}
-                  className="btn-secondary px-4 py-2 text-sm"
+                  className="btn-secondary px-3 py-2 text-sm"
                   disabled={
                     ![
                       'playing-audio',
@@ -628,76 +628,79 @@ export default function GamePage() {
                     ].includes(gameState.phase)
                   }
                 >
-                  <span className="flex items-center gap-2">
-                    {gameState.paused ? (
-                      <Play size={16} weight="duotone" />
-                    ) : (
-                      <Pause size={16} weight="duotone" />
-                    )}
-                    {gameState.paused ? 'Resume' : 'Pause'}
-                  </span>
+                  {gameState.paused ? (
+                    <Play size={16} weight="duotone" />
+                  ) : (
+                    <Pause size={16} weight="duotone" />
+                  )}
+                  {gameState.paused ? 'Resume' : 'Pause'}
                 </button>
               )}
               {isHost && room.isActive && (
                 <button
                   type="button"
                   onClick={handleStopGame}
-                  className="btn-secondary px-4 py-2 text-sm"
+                  className="btn-secondary px-3 py-2 text-sm"
                   disabled={isStoppingGame}
                 >
-                  <span className="flex items-center gap-2">
-                    <Square size={16} weight="duotone" />
-                    {isStoppingGame ? 'Stopping...' : 'Stop'}
-                  </span>
+                  <Square size={16} weight="duotone" />
+                  {isStoppingGame ? 'Stopping...' : 'Stop'}
                 </button>
               )}
               {isHost && room.isActive && (
                 <button
                   type="button"
                   onClick={handleSkipRound}
-                  className="btn-secondary px-4 py-2 text-sm"
+                  className="btn-secondary px-3 py-2 text-sm"
                   disabled={isSkippingRound}
                 >
-                  <span className="flex items-center gap-2">
-                    <SkipForward size={16} weight="duotone" />
-                    {isSkippingRound ? 'Skipping...' : 'Skip Round'}
-                  </span>
+                  <SkipForward size={16} weight="duotone" />
+                  {isSkippingRound ? 'Skipping...' : 'Skip Round'}
                 </button>
               )}
-              <button onClick={handleLeaveRoom} className="btn-secondary px-4 py-2 text-sm">
-                <span className="flex items-center gap-2">
-                  <SignOut size={16} weight="duotone" />
-                  Leave
-                </span>
+              <button onClick={handleLeaveRoom} className="btn-secondary px-3 py-2 text-sm">
+                <SignOut size={16} weight="duotone" />
+                Leave
               </button>
               <ThemeToggle />
             </>
           }
         />
 
-        <div className={showChat ? 'grid lg:grid-cols-4 gap-6' : 'grid lg:grid-cols-3 gap-6'}>
+        <div
+          className={
+            showChat
+              ? 'grid overflow-hidden rounded-[3px] border lg:grid-cols-4'
+              : 'grid overflow-hidden rounded-[3px] border lg:grid-cols-3'
+          }
+          style={{ borderColor: 'var(--border)' }}
+        >
           {/* Left Sidebar - Players & Info */}
-          <div className="space-y-6 lg:col-span-1">
-            <PlayersPanel
-              players={room.players}
-              mode={mode}
-              playerAnswerStatus={gameState.playerAnswerStatus}
-              showStatusBorders={
-                gameState.phase === 'playing-audio' ||
-                gameState.phase === 'answering' ||
-                gameState.phase === 'showing-results' ||
-                gameState.phase === 'game-over'
-              }
-            />
-            {(!room.isActive && (gameState.previousSongs?.length ?? 0) === 0) ? (
-              <HowToPlayCard mode={mode} lyricAnswerTimeSec={lyricAnswerTimeSec} />
-            ) : (
-              <PreviousSongsCard previousSongs={gameState.previousSongs} />
-            )}
+          <div className="lg:col-span-1 lg:border-r" style={{ borderColor: 'var(--border)' }}>
+            <div>
+              <PlayersPanel
+                players={room.players}
+                mode={mode}
+                playerAnswerStatus={gameState.playerAnswerStatus}
+                showStatusBorders={
+                  gameState.phase === 'playing-audio' ||
+                  gameState.phase === 'answering' ||
+                  gameState.phase === 'showing-results' ||
+                  gameState.phase === 'game-over'
+                }
+              />
+            </div>
+            <div className="border-t" style={{ borderColor: 'var(--border)' }}>
+              {(!room.isActive && (gameState.previousSongs?.length ?? 0) === 0) ? (
+                <HowToPlayCard mode={mode} lyricAnswerTimeSec={lyricAnswerTimeSec} />
+              ) : (
+                <PreviousSongsCard previousSongs={gameState.previousSongs} />
+              )}
+            </div>
           </div>
 
           {/* Main Game Area */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2">
             {/* Game Phase Display */}
             {gameState.phase === 'waiting' && (
               <WaitingPanel
@@ -747,10 +750,11 @@ export default function GamePage() {
                 clipLyricLines={gameState.clipLyricLines}
                 currentClipIndex={currentClipIndex}
                 roundLabel={roundLabel}
+                myAnswerStatus={myAnswerStatus}
               />
             )}
 
-            {isAnswerPhase && (
+            {isAnswerPhase && mode === 'finish-lyrics' && (
               <AnswerPhasePanel
                 mode={mode}
                 modeLabel={modeLabel}
@@ -790,22 +794,25 @@ export default function GamePage() {
 
           {/* Right Chat Column */}
           {showChat && (
-            <ChatPanel
-              chatMessages={chatMessages}
-              isAnswerPhase={isAnswerPhase}
-              answer={answer}
-              onAnswerChange={setAnswer}
-              onSubmit={handleSubmit}
-              inputFlashStyle={inputFlashStyle}
-              answerInputRef={answerInputRef as React.RefObject<HTMLInputElement>}
-              chatDisabled={chatDisabled}
-              lastErrorMessage={
-                !gameState.lastAnswerFeedback?.correct ? gameState.lastAnswerFeedback?.message : undefined
-              }
-              currentUsername={currentPlayer?.username}
-              currentPlayerId={currentPlayer?.id}
-              autoScrollMode={isGuessMode ? 'all' : 'self'}
-            />
+            <div className="border-t lg:border-l lg:border-t-0" style={{ borderColor: 'var(--border)' }}>
+              <ChatPanel
+                title="Guesses"
+                chatMessages={chatMessages}
+                isAnswerPhase={isAnswerPhase}
+                answer={answer}
+                onAnswerChange={setAnswer}
+                onSubmit={handleSubmit}
+                inputFlashStyle={inputFlashStyle}
+                answerInputRef={answerInputRef as React.RefObject<HTMLInputElement>}
+                chatDisabled={chatDisabled}
+                lastErrorMessage={
+                  !gameState.lastAnswerFeedback?.correct ? gameState.lastAnswerFeedback?.message : undefined
+                }
+                currentUsername={currentPlayer?.username}
+                currentPlayerId={currentPlayer?.id}
+                autoScrollMode={isGuessMode ? 'all' : 'self'}
+              />
+            </div>
           )}
         </div>
       </div>

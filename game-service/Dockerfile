@@ -1,22 +1,32 @@
-FROM node:20-alpine
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
-# Copy package files
+COPY package*.json ./
+RUN npm ci
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY tsconfig.json ./
-
-# Install dependencies
-RUN npm install
-
-# Copy source code
 COPY src ./src
 
-# Build TypeScript
 RUN npm run build
+RUN npm prune --omit=dev
 
-# Expose port
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+
 EXPOSE 5000
 
-# Start server
 CMD ["npm", "start"]

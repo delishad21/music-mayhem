@@ -45,7 +45,7 @@ export function useGameSettingsSync({
     setResultsDelaySec(Math.round((settings.resultsDelayMs ?? 7000) / 1000));
     setGuessClipDurationSec(settings.clipDuration ?? 15);
     setLyricAnswerTimeSec(Math.round((settings.lyricAnswerTimeMs ?? 20000) / 1000));
-    setMaxRounds(settings.maxRounds ?? 0);
+    setMaxRounds(settings.maxRounds ?? 15);
     setAllowJoinInProgress(settings.allowJoinInProgress !== false);
     setAllowChineseVariants(settings.allowChineseVariants !== false);
     setShufflePlaylist(settings.shufflePlaylist !== false);

@@ -1,4 +1,6 @@
 import { GameState } from '@/types/game';
+import { CloudArrowDown } from 'phosphor-react';
+import PanelHeading from './PanelHeading';
 
 interface LoadingPanelProps {
   loadingMessage?: string;
@@ -20,20 +22,17 @@ export default function LoadingPanel({
   roundLabel,
 }: LoadingPanelProps) {
   return (
-    <div className="card py-12 max-w-3xl mx-auto">
+    <div className="game-segment game-segment-tint py-10">
       {roundLabel && (
         <div className="flex justify-center mb-6">
-          <div
-            className="px-4 py-1 rounded-full text-xs font-semibold uppercase tracking-widest"
-            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--card-hover)' }}
-          >
-            {roundLabel}
-          </div>
+          <div className="mode-chip">{roundLabel}</div>
         </div>
       )}
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">⏳</div>
-        <h2 className="text-3xl font-bold mb-2">Loading Song...</h2>
+        <div className="eyebrow mb-2">Preparing</div>
+        <div className="mb-2 flex justify-center">
+          <PanelHeading icon={<CloudArrowDown size={16} weight="duotone" />} title="Loading Song" />
+        </div>
         <p className="opacity-70">
           {loadingMessage || 'Loading song and syncing lyrics.'}
         </p>
@@ -44,12 +43,11 @@ export default function LoadingPanel({
           <span>Preparing song</span>
           <span>{Math.round(loadingProgress * 100)}%</span>
         </div>
-        <div className="w-full bg-gray-300 dark:bg-gray-700 h-3 rounded-full overflow-hidden">
+        <div className="progress-track">
           <div
-            className="h-full transition-all duration-200"
+            className="progress-fill duration-200"
             style={{
               width: `${Math.round(loadingProgress * 100)}%`,
-              backgroundColor: 'var(--primary)',
             }}
           />
         </div>
@@ -61,13 +59,15 @@ export default function LoadingPanel({
       </div>
 
       {queueStatus && (
-        <div className="text-sm opacity-70 mb-4 text-center">
-          Ready: {queueStatus.ready} • Loading: {queueLoadingCount} • Failed: {queueStatus.failed}
+        <div className="mb-4 flex flex-wrap justify-center gap-2 text-sm">
+          <span className="mode-chip">Ready {queueStatus.ready}</span>
+          <span className="mode-chip">Loading {queueLoadingCount}</span>
+          <span className="mode-chip">Failed {queueStatus.failed}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="p-3 rounded-lg bg-red-500 bg-opacity-20 text-red-500 border border-red-500">
+        <div className="p-3 rounded-[3px] bg-red-500 bg-opacity-20 text-red-500 border border-red-500">
           {errorMessage}
         </div>
       )}

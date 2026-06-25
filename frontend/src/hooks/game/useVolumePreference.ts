@@ -22,7 +22,7 @@ export function useVolumePreference({
     if (!user) return;
     const key = `volume:${user.id}`;
     const saved = localStorage.getItem(key);
-    const initialVolume = saved ? Math.min(1, Math.max(0, Number(saved))) : 0.7;
+    const initialVolume = saved ? Math.min(1, Math.max(0, Number(saved))) : 0.5;
     setVolume(initialVolume);
   }, [user, setVolume]);
 

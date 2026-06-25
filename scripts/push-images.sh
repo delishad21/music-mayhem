@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DOCKERHUB_USER="delishad21"
+DOCKERHUB_USER="${DOCKERHUB_USER:-delishad21}"
+NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://musicgame.delishad.com}"
+VERSION_TAG="${VERSION_TAG:-}"
+PLATFORM="${PLATFORM:-}"
 REPOS=(
   "musicgame-game-service"
   "musicgame-song-service"
@@ -22,7 +25,6 @@ require_cmd() {
 }
 
 require_cmd docker
-require_cmd curl
 require_cmd python3
 
 get_next_version() {
@@ -66,7 +68,13 @@ pull_if_exists() {
   local image="$1"
   if docker manifest inspect "$image" >/dev/null 2>&1; then
     log "Pulling existing image: $image"
-    docker pull "$image"
+    local platform_args=()
+    if [[ -n "$PLATFORM" ]]; then
+      platform_args=(--platform "$PLATFORM")
+    fi
+    if ! docker pull "${platform_args[@]}" "$image"; then
+      log "Warning: could not pull existing image, continuing without cache: $image"
+    fi
   else
     log "No existing image found for: $image"
   fi
@@ -82,17 +90,22 @@ build_and_push() {
   pull_if_exists "$latest"
   pull_if_exists "$versioned"
 
+  local platform_args=()
+  if [[ -n "$PLATFORM" ]]; then
+    platform_args=(--platform "$PLATFORM")
+  fi
+
   log "Building ${repo} as ${versioned}"
   case "$repo" in
     musicgame-game-service)
-      docker build -t "$versioned" -f "$ROOT_DIR/game-service/Dockerfile" "$ROOT_DIR/game-service"
+      docker build "${platform_args[@]}" -t "$versioned" -f "$ROOT_DIR/game-service/Dockerfile" "$ROOT_DIR/game-service"
       ;;
     musicgame-song-service)
-      docker build -t "$versioned" -f "$ROOT_DIR/song-service/Dockerfile" "$ROOT_DIR/song-service"
+      docker build "${platform_args[@]}" -t "$versioned" -f "$ROOT_DIR/song-service/Dockerfile" "$ROOT_DIR/song-service"
       ;;
     musicgame-frontend)
-      NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://musicgame.delishad.com}"
       docker build \
+        "${platform_args[@]}" \
         --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
         -t "$versioned" \
         -f "$ROOT_DIR/frontend/Dockerfile" \
@@ -115,8 +128,17 @@ build_and_push() {
 }
 
 log "Docker Hub user: $DOCKERHUB_USER"
-log "Fetching next version tag..."
-NEXT_VERSION="$(get_next_version "${REPOS[0]}")"
+log "Frontend public API URL: $NEXT_PUBLIC_API_URL"
+if [[ -n "$PLATFORM" ]]; then
+  log "Build platform: $PLATFORM"
+fi
+
+if [[ -n "$VERSION_TAG" ]]; then
+  NEXT_VERSION="$VERSION_TAG"
+else
+  log "Fetching next version tag..."
+  NEXT_VERSION="$(get_next_version "${REPOS[0]}")"
+fi
 log "Next version tag: $NEXT_VERSION"
 
 for repo in "${REPOS[@]}"; do

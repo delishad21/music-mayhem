@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
 import { GameMode } from '@/types/game';
 import StepperField from '@/components/game/StepperField';
+import { Clock, Eye, GearSix, Translate } from 'phosphor-react';
 
 interface SettingsCardProps {
   mode: GameMode;
@@ -33,6 +35,53 @@ interface SettingsCardProps {
   onRevealChineseChange: (value: boolean) => void;
   onRevealVietnameseChange: (value: boolean) => void;
   onRevealSpanishChange: (value: boolean) => void;
+}
+
+function Section({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t pt-4 first:border-t-0 first:pt-0" style={{ borderColor: 'var(--border)' }}>
+      <div className="eyebrow mb-3 flex items-center gap-2">
+        {icon}
+        {title}
+      </div>
+      <div className="grid gap-3">{children}</div>
+    </section>
+  );
+}
+
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2 border px-3 py-2.5 text-sm transition-colors hover:bg-[var(--card-hover)]" style={{ borderColor: 'var(--border)' }}>
+      <input
+        type="checkbox"
+        className="mt-0.5 accent-[var(--mode-accent)]"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="min-w-0">
+        <span className="font-semibold leading-tight">{label}</span>
+        {description ? <span className="mt-0.5 block text-xs opacity-60">{description}</span> : null}
+      </span>
+    </label>
+  );
 }
 
 export default function SettingsCard({
@@ -69,30 +118,33 @@ export default function SettingsCard({
   onRevealSpanishChange,
 }: SettingsCardProps) {
   return (
-    <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)' }}>
-      <details className="group" open>
-        <summary className="flex items-center justify-between cursor-pointer rounded-lg px-4 py-3 text-base font-semibold uppercase tracking-[0.18em] text-[var(--text)]">
-          <span>Game Settings</span>
-          <span className="text-2xl transition-transform duration-200 group-open:rotate-180">▾</span>
-        </summary>
-        <div className="mt-4 space-y-4">
+    <div className="space-y-5">
+      <Section title="Round Flow" icon={<Clock size={14} weight="duotone" />}>
+        <div className="grid gap-3 md:grid-cols-2">
           <StepperField
-            label="Countdown before round (seconds)"
+            label="Countdown"
             value={roundCountdownSec}
             min={0}
             max={15}
             onChange={onRoundCountdownChange}
           />
           <StepperField
-            label="Results screen duration (seconds)"
+            label="Results duration"
             value={resultsDelaySec}
             min={2}
             max={20}
             onChange={onResultsDelayChange}
           />
+          <StepperField
+            label="Max rounds"
+            value={maxRounds}
+            min={0}
+            max={200}
+            onChange={onMaxRoundsChange}
+          />
           {mode === 'guess-song-easy' && (
             <StepperField
-              label="Clip duration (seconds)"
+              label="Clip duration"
               value={guessClipDurationSec}
               min={5}
               max={60}
@@ -101,92 +153,67 @@ export default function SettingsCard({
           )}
           {mode === 'finish-lyrics' && (
             <StepperField
-              label="Answer time (seconds)"
+              label="Answer time"
               value={lyricAnswerTimeSec}
               min={10}
               max={60}
               onChange={onLyricAnswerTimeChange}
             />
           )}
-          <StepperField
-            label="Max rounds (0 = off)"
-            value={maxRounds}
-            min={0}
-            max={200}
-            onChange={onMaxRoundsChange}
+        </div>
+        <div className="text-xs opacity-60">Set max rounds to 0 for no round cap.</div>
+      </Section>
+
+      <Section title="Room Behavior" icon={<GearSix size={14} weight="duotone" />}>
+        <div className="grid gap-2 md:grid-cols-2">
+          <ToggleRow
+            label="Allow mid-game joins"
+            description="Late players enter as spectators until the next round."
+            checked={allowJoinInProgress}
+            onChange={onAllowJoinInProgressChange}
           />
-          <label className="flex items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={allowJoinInProgress}
-              onChange={(e) => onAllowJoinInProgressChange(e.target.checked)}
-            />
-            <span className="font-semibold">Allow players to join mid-game</span>
-          </label>
-          <label className="flex items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={shufflePlaylist}
-              onChange={(e) => onShufflePlaylistChange(e.target.checked)}
-            />
-            <span className="font-semibold">Shuffle playlist (default on)</span>
-          </label>
-          <div className="flex items-center gap-3 text-sm">
+          <ToggleRow
+            label="Shuffle playlist"
+            description="Randomize order whenever the playlist is prepared."
+            checked={shufflePlaylist}
+            onChange={onShufflePlaylistChange}
+          />
+        </div>
+      </Section>
+
+      <Section title="Lyric Handling" icon={<Translate size={14} weight="duotone" />}>
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
+          <label className="grid gap-2 text-sm">
             <span className="font-semibold">Chinese lyric conversion</span>
             <select
               className="input"
               value={convertChineseLyrics}
-              onChange={(e) => onConvertChineseLyricsChange(e.target.value as 'none' | 't2s' | 's2t')}
+              onChange={(event) => onConvertChineseLyricsChange(event.target.value as 'none' | 't2s' | 's2t')}
             >
               <option value="none">No conversion</option>
-              <option value="t2s">Traditional → Simplified</option>
-              <option value="s2t">Simplified → Traditional</option>
+              <option value="t2s">Traditional to Simplified</option>
+              <option value="s2t">Simplified to Traditional</option>
             </select>
-          </div>
-          <label className="flex items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={allowChineseVariants}
-              onChange={(e) => onAllowChineseVariantsChange(e.target.checked)}
-            />
-            <span className="font-semibold">
-              Treat Traditional/Simplified Chinese as equivalent
-            </span>
           </label>
-          <div className="border-t border-[var(--border)] pt-4 space-y-3">
-            <div className="text-sm font-semibold uppercase tracking-[0.2em] opacity-70">
-              Lyric Masking
-            </div>
-            <div className="text-sm opacity-70">
-              Toggle whether numbers and non-Latin characters are revealed or masked.
-            </div>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={revealNumbers} onChange={(e) => onRevealNumbersChange(e.target.checked)} />
-              <span className="font-semibold">Reveal numbers (0-9)</span>
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={revealKorean} onChange={(e) => onRevealKoreanChange(e.target.checked)} />
-              <span className="font-semibold">Reveal Korean (Hangul)</span>
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={revealJapanese} onChange={(e) => onRevealJapaneseChange(e.target.checked)} />
-              <span className="font-semibold">Reveal Japanese (Hiragana/Katakana)</span>
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={revealChinese} onChange={(e) => onRevealChineseChange(e.target.checked)} />
-              <span className="font-semibold">Reveal Chinese (CJK)</span>
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={revealVietnamese} onChange={(e) => onRevealVietnameseChange(e.target.checked)} />
-              <span className="font-semibold">Reveal Vietnamese accents</span>
-            </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" checked={revealSpanish} onChange={(e) => onRevealSpanishChange(e.target.checked)} />
-              <span className="font-semibold">Reveal Spanish accents</span>
-            </label>
-          </div>
+          <ToggleRow
+            label="Match Chinese variants"
+            description="Treat Traditional and Simplified Chinese as equivalent."
+            checked={allowChineseVariants}
+            onChange={onAllowChineseVariantsChange}
+          />
         </div>
-      </details>
+      </Section>
+
+      <Section title="Lyric Masking" icon={<Eye size={14} weight="duotone" />}>
+        <div className="grid gap-2 md:grid-cols-2">
+          <ToggleRow label="Reveal numbers" checked={revealNumbers} onChange={onRevealNumbersChange} />
+          <ToggleRow label="Reveal Korean" checked={revealKorean} onChange={onRevealKoreanChange} />
+          <ToggleRow label="Reveal Japanese" checked={revealJapanese} onChange={onRevealJapaneseChange} />
+          <ToggleRow label="Reveal Chinese" checked={revealChinese} onChange={onRevealChineseChange} />
+          <ToggleRow label="Reveal Vietnamese accents" checked={revealVietnamese} onChange={onRevealVietnameseChange} />
+          <ToggleRow label="Reveal Spanish accents" checked={revealSpanish} onChange={onRevealSpanishChange} />
+        </div>
+      </Section>
     </div>
   );
 }

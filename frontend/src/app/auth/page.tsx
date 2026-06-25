@@ -109,9 +109,9 @@ function AuthPageContent() {
 
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold mb-2" style={{ color: 'var(--primary)' }}>
+          <h1 className="display-heading mb-2 text-5xl font-extrabold uppercase leading-none" style={{ color: 'var(--primary)' }}>
             <span className="inline-flex items-center gap-3">
-              <MusicNote size={32} weight="duotone" />
+              <MusicNote className="block flex-shrink-0" size={32} weight="duotone" />
               Music Mayhem
             </span>
           </h1>
@@ -120,14 +120,14 @@ function AuthPageContent() {
           </p>
         </div>
 
-        <div className="card">
+        <div className="separator-panel">
           <div className="flex gap-4 mb-6">
             <button
               onClick={() => {
                 setIsLogin(true);
                 setError('');
               }}
-              className={`flex-1 py-2 font-semibold rounded-md transition-all ${
+              className={`flex-1 py-2 font-semibold rounded-[3px] transition-all ${
                 isLogin ? 'btn' : 'opacity-50 hover:opacity-75'
               }`}
             >
@@ -138,7 +138,7 @@ function AuthPageContent() {
                 setIsLogin(false);
                 setError('');
               }}
-              className={`flex-1 py-2 font-semibold rounded-md transition-all ${
+              className={`flex-1 py-2 font-semibold rounded-[3px] transition-all ${
                 !isLogin ? 'btn' : 'opacity-50 hover:opacity-75'
               }`}
             >
@@ -177,7 +177,7 @@ function AuthPageContent() {
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-500 bg-opacity-20 text-red-500 border border-red-500">
+              <div className="p-3 rounded-[3px] bg-red-500 bg-opacity-20 text-red-500 border border-red-500">
                 {error}
               </div>
             )}

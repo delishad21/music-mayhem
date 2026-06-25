@@ -14,6 +14,7 @@ import {
   SignIn,
   SignOut,
   Trophy,
+  Users,
 } from "phosphor-react";
 import GameModeCard from "@/components/GameModeCard";
 import AuthRequiredModal from "@/components/AuthRequiredModal";
@@ -162,83 +163,95 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8">
+    <div className="template-shell min-h-screen">
       {/* Header */}
-      <div className="absolute top-4 right-4 flex gap-3 items-center">
-        {user ? (
-          <>
-            <span className="text-sm">
-              Welcome, <strong>{user.displayName || user.username}</strong>
-            </span>
-            <button
-              onClick={handleLogout}
-              className="btn-secondary px-4 py-2 text-sm"
-            >
-              <span className="flex items-center gap-2">
+      <header className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[3px] bg-[var(--primary)] text-white">
+            <MusicNote size={16} weight="duotone" />
+          </div>
+          <span className="display-heading text-xl font-extrabold tracking-normal">MUSIC MAYHEM</span>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {user ? (
+            <>
+              <span className="hidden text-sm opacity-70 sm:inline">
+                {user.displayName || user.username}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="btn-secondary px-4 py-2 text-sm"
+              >
                 <SignOut size={16} weight="duotone" />
                 Logout
-              </span>
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={() => router.push("/auth")}
-            className="btn px-4 py-2 text-sm"
-          >
-            <span className="flex items-center gap-2">
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => router.push("/auth")}
+              className="btn px-4 py-2 text-sm"
+            >
               <SignIn size={16} weight="duotone" />
               Login / Register
-            </span>
-          </button>
-        )}
-        <ThemeToggle />
-      </div>
+            </button>
+          )}
+          <ThemeToggle />
+        </div>
+      </header>
 
       {/* Main Content */}
-      <div className="max-w-4xl w-full">
-        <div
-          className="flex items-center justify-center gap-3 mb-4"
-          style={{ color: "var(--primary)" }}
-        >
-          <MusicNote size={36} weight="duotone" />
-          <h1 className="text-5xl font-bold text-center">Music Mayhem</h1>
+      <main className="mx-auto flex w-full max-w-5xl flex-col px-6 pb-14 pt-12 md:pt-16">
+        <div className="mb-10">
+          <div className="eyebrow mb-3">Music Trivia Platform</div>
+          <h1 className="display-heading text-6xl inline-flex gap-6 font-extrabold uppercase leading-[0.9] md:text-8xl">
+            Play
+            <span style={{ color: "var(--azure-blue)" }}>Listen</span>
+            <span style={{ color: "var(--medium-jungle)" }}>Compete</span>
+          </h1>
         </div>
-        <p className="text-center text-xl mb-12 opacity-80">
-          Choose your game mode!
-        </p>
 
         {/* Game Modes */}
-        <div className="grid md:grid-cols-3 gap-6">
+
+        <div className="eyebrow mb-3">Gamemodes:</div>
+        <div className="grid gap-4 md:grid-cols-3">
           {[
             {
               mode: "finish-lyrics",
               title: "Finish the Lyrics",
+              tagline: "Complete the missing line",
+              tag: "Typing",
               description: "Listen to a short clip, then fill in the missing lyrics.",
-              accentColor: "var(--amber-gold)",
-              hoverTint: "rgba(251, 188, 5, 0.12)",
-              icon: <MicrophoneStage size={40} weight="duotone" />,
+              accentColor: "var(--azure-blue)",
+              hoverTint: "rgba(66, 133, 244, 0.12)",
+              icon: <MicrophoneStage size={22} weight="duotone" />,
             },
             {
               mode: "guess-song-easy",
               title: "Guess the Song",
+              tagline: "Name that tune",
+              tag: "Classic",
               description: "Identify the song and artist while the clip is playing.",
               accentColor: "var(--medium-jungle)",
               hoverTint: "rgba(52, 168, 83, 0.12)",
-              icon: <Headphones size={40} weight="duotone" />,
+              icon: <Headphones size={22} weight="duotone" />,
             },
             {
               mode: "guess-song-challenge",
               title: "Challenge Mode",
+              tagline: "Beat the clock",
+              tag: "Challenge",
               description:
                 "Progressive clips from 1s to 10s. Guess the song at any point.",
               accentColor: "var(--cinnabar)",
               hoverTint: "rgba(234, 67, 53, 0.12)",
-              icon: <Trophy size={40} weight="duotone" />,
+              icon: <Trophy size={22} weight="duotone" />,
             },
           ].map((card) => (
             <GameModeCard
               key={card.mode}
               title={card.title}
+              tagline={card.tagline}
+              tag={card.tag}
               description={card.description}
               accentColor={card.accentColor}
               hoverTint={card.hoverTint}
@@ -249,15 +262,16 @@ export default function Home() {
         </div>
 
         {/* Lobby Browser */}
-        <div className="mt-12 text-center">
+        <div className="mt-8 flex">
           <button
             onClick={() => router.push("/lobby")}
             className="btn-secondary"
           >
+            <Users size={17} weight="duotone" />
             Browse Active Lobbies
           </button>
         </div>
-      </div>
+      </main>
 
       {/* Auth Modal */}
       {showAuthModal && (

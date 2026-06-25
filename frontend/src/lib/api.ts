@@ -79,6 +79,7 @@ export const roomsAPI = {
     return response.data.rooms as Array<{
       code: string;
       gameMode: string;
+      isActive?: boolean;
       playerCount: number;
       hostName?: string;
     }>;
@@ -88,6 +89,7 @@ export const roomsAPI = {
     return response.data.room as {
       code: string;
       gameMode: string;
+      isActive?: boolean;
       isPrivate: boolean;
       playerCount: number;
       hostName?: string;

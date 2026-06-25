@@ -1,4 +1,5 @@
-import { SignIn } from "phosphor-react";
+import { SignIn, UserCircle } from "phosphor-react";
+import PanelHeading from './game/PanelHeading';
 
 interface AuthRequiredModalProps {
   guestName: string;
@@ -22,10 +23,11 @@ export default function AuthRequiredModal({
   onCancel,
 }: AuthRequiredModalProps) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="card max-w-md">
-        <h2 className="text-2xl font-bold mb-4">Login Required</h2>
-        <p className="mb-4">You need to login or continue as a guest.</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
+      <div className="modal-panel w-full max-w-md">
+        <div className="eyebrow mb-2">Join Game</div>
+        <PanelHeading className="mb-3" icon={<UserCircle size={16} weight="duotone" />} title="Login Required" />
+        <p className="mb-5 opacity-70">You need to login or continue as a guest.</p>
         <div className="space-y-3 mb-6">
           <label className="block text-sm font-semibold">Guest name</label>
           <input
@@ -52,10 +54,8 @@ export default function AuthRequiredModal({
         <div className="space-y-3">
           <div className="flex gap-3">
             <button onClick={onLogin} className="btn flex-1">
-              <span className="flex items-center justify-center gap-2">
-                <SignIn size={16} weight="duotone" />
-                Login
-              </span>
+              <SignIn size={16} weight="duotone" />
+              Login
             </button>
             <button onClick={onSignup} className="btn-secondary flex-1">
               Sign up

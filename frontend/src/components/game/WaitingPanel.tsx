@@ -1,4 +1,7 @@
 import { ReactNode } from 'react';
+import { HourglassMedium } from 'phosphor-react';
+import PanelHeading from './PanelHeading';
+
 interface WaitingPanelProps {
   isHost: boolean;
   hostSetupPanel: ReactNode;
@@ -21,20 +24,25 @@ export default function WaitingPanel({
   })();
 
   return (
-    <div className="card py-10">
+    <div className="game-segment game-segment-tint py-8">
       {!isHost && (
         <>
-          <h2 className="text-3xl font-bold mb-3 text-center">Waiting for game to start...</h2>
+          <div className="mb-3 text-center">
+            <div className="eyebrow mb-2">Lobby Status</div>
+            <div className="flex justify-center">
+              <PanelHeading icon={<HourglassMedium size={16} weight="duotone" />} title="Waiting" />
+            </div>
+          </div>
           <div
-            className="max-w-2xl mx-auto mb-8 rounded-lg border px-4 py-4 text-center font-semibold"
+            className="mx-auto mb-8 max-w-2xl rounded-[3px] border px-5 py-5 text-center text-lg font-semibold"
             style={{
-              borderColor: 'var(--primary)',
-              backgroundColor: 'rgba(66, 133, 244, 0.08)',
+              borderColor: 'color-mix(in srgb, var(--mode-accent) 40%, var(--border))',
+              backgroundColor: 'color-mix(in srgb, var(--mode-accent) 10%, transparent)',
             }}
           >
             {playerStatus}
             {playlistPreparing && !firstSongReady ? (
-              <span className="ml-2 text-xs uppercase tracking-widest opacity-70">Loading</span>
+              <span className="mode-chip ml-2 align-middle">Loading</span>
             ) : null}
           </div>
         </>

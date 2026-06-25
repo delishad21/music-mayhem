@@ -34,6 +34,14 @@ const roomPrepTimeouts = new Map<string, NodeJS.Timeout>();
 const roomRoundTimeouts = new Map<string, NodeJS.Timeout[]>();
 const ROUND_COUNTDOWN_MS = 3000;
 
+export function canRoomBeDiscovered(room: Room): boolean {
+  return !room.isPrivate && (!room.isActive || room.settings.allowJoinInProgress !== false);
+}
+
+export function canRoomBeLookedUp(room: Room): boolean {
+  return !room.isActive || room.settings.allowJoinInProgress !== false;
+}
+
 function emitToast(io: Server, roomCode: string, message: string, variant: 'info' | 'warning' | 'error' = 'info') {
   io.to(roomCode).emit('toast', {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -83,11 +91,14 @@ function normalizeRoomSettings(input: any = {}): RoomSettings {
     return Math.min(max, Math.max(min, numeric));
   };
 
+  const hasMaxRoundsInput =
+    input.maxRounds !== undefined && input.maxRounds !== null && input.maxRounds !== '';
   const maxRoundsValue = Number(input.maxRounds);
-  const maxRounds =
-    Number.isFinite(maxRoundsValue) && maxRoundsValue > 0
+  const maxRounds = hasMaxRoundsInput
+    ? Number.isFinite(maxRoundsValue) && maxRoundsValue > 0
       ? Math.min(500, Math.floor(maxRoundsValue))
-      : undefined;
+      : undefined
+    : 15;
 
   return {
     clipDuration: clampNumber(input.clipDuration, 5, 60, 15),
@@ -471,10 +482,11 @@ export function setupSocketHandlers(io: Server) {
 
     socket.on('get-rooms', () => {
       const activeRooms = Array.from(rooms.values())
-        .filter(room => !room.isActive && !room.isPrivate)
+        .filter(canRoomBeDiscovered)
         .map(room => ({
           code: room.code,
           gameMode: room.gameMode,
+          isActive: room.isActive,
           playerCount: room.players.length,
           hostName: room.players.find(p => p.isHost)?.displayName || room.players.find(p => p.isHost)?.username,
         }));

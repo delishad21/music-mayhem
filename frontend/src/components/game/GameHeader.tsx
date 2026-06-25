@@ -18,25 +18,35 @@ export default function GameHeader({
   rightContent,
 }: GameHeaderProps) {
   return (
-    <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <div className="flex items-center gap-3 mb-2">
-          {modeIcon}
-          <h1
-            className="text-3xl font-extrabold uppercase tracking-[0.22em]"
-            style={{ color: accentColor }}
-          >
-            {modeLabel}
-          </h1>
+    <div className="relative mb-6 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="mb-2 flex items-center gap-3">
+            <div className="flex items-center justify-center" style={{ color: accentColor }}>
+              {modeIcon}
+            </div>
+            <h1
+              className="display-heading text-3xl font-extrabold uppercase leading-none md:text-4xl"
+              style={{ color: accentColor }}
+            >
+              {modeLabel}
+            </h1>
+          </div>
+          <div className="eyebrow">
+            Room Code{" "}
+            <span className="ml-2 text-lg font-bold opacity-100" style={{ color: accentColor }}>
+              {roomCode}
+            </span>
+          </div>
         </div>
-        <div className="text-sm opacity-60">
-          Room Code:{" "}
-          <span className="font-mono font-bold text-2xl">{roomCode}</span>
-        </div>
+        {rightContent ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">{rightContent}</div>
+        ) : null}
       </div>
-      {rightContent ? (
-        <div className="flex flex-wrap items-center gap-3">{rightContent}</div>
-      ) : null}
+      <div
+        className="absolute bottom-0 left-1/2 h-px w-screen -translate-x-1/2"
+        style={{ backgroundColor: accentColor }}
+      />
     </div>
   );
 }

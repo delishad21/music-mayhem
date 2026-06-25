@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -38,9 +40,7 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -66,9 +66,11 @@ body {
 
 /* Utility classes */
 .btn {
-  @apply px-6 py-3 rounded-md font-semibold transition-all duration-200 cursor-pointer;
+  @apply inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[3px] font-semibold transition-all duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-45;
   background-color: var(--primary);
   color: white;
+  border: 1px solid color-mix(in srgb, var(--primary) 78%, transparent);
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 .btn:hover {
@@ -79,20 +81,28 @@ body {
 }
 
 .btn-secondary {
-  @apply btn;
-  background-color: var(--border);
+  @apply inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[3px] font-semibold transition-all duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-45;
+  background-color: var(--card);
   color: var(--foreground);
+  border: 1px solid var(--border);
+  box-shadow: none;
 }
 
 .btn-secondary:hover {
-  background-color: var(--primary-hover);
+  background-color: var(--card-hover);
+  border-color: color-mix(in srgb, var(--foreground) 24%, var(--border));
 }
 
 .card {
   background-color: var(--card);
-  border: 2px solid var(--card-border, var(--border));
-  border-radius: 8px;
+  border: 1px solid var(--card-border, var(--border));
+  border-radius: 3px;
   padding: 1.5rem;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.08);
+}
+
+.dark .card {
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
 }
 
 .mode-card {
@@ -106,9 +116,9 @@ body {
 }
 
 .input {
-  @apply px-4 py-2 rounded-md w-full;
+  @apply w-full rounded-[3px] px-4 py-2;
   background-color: var(--card);
-  border: 2px solid var(--border);
+  border: 1px solid var(--border);
   color: var(--foreground);
   outline: none;
   transition: border-color 0.2s ease;
@@ -119,6 +129,99 @@ body {
 }
 
 .hangman-text {
-  @apply text-4xl font-mono tracking-wider;
-  letter-spacing: 0.3em;
+  @apply text-3xl md:text-4xl font-mono tracking-wider;
+  letter-spacing: 0.18em;
+  overflow-wrap: anywhere;
+}
+
+.display-heading {
+  font-family: 'Barlow Condensed', 'DM Sans', sans-serif;
+  letter-spacing: 0;
+}
+
+.mono-label {
+  font-family: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.template-shell {
+  background: var(--background);
+}
+
+.surface-tint {
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--mode-accent, var(--primary)) 35%, var(--border));
+}
+
+.game-segment {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1rem;
+}
+
+.game-segment-tint {
+  background: transparent;
+}
+
+.separator-panel {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1rem;
+}
+
+.modal-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+  padding: 1rem;
+}
+
+.eyebrow {
+  @apply text-xs font-medium opacity-70;
+  font-family: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.mode-chip {
+  @apply inline-flex items-center gap-2 rounded-[2px] border px-2.5 py-1 text-xs font-medium;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mode-accent, var(--primary));
+  background: color-mix(in srgb, var(--mode-accent, var(--primary)) 13%, transparent);
+  border-color: color-mix(in srgb, var(--mode-accent, var(--primary)) 34%, transparent);
+}
+
+.btn svg,
+.btn-secondary svg,
+.mode-chip svg,
+.eyebrow svg,
+.panel-heading-icon svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.progress-track {
+  @apply h-2 w-full overflow-hidden rounded-full;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.progress-fill {
+  @apply h-full rounded-full transition-all duration-300;
+  background: var(--mode-accent, var(--primary));
+}
+
+.panel-title {
+  @apply text-xl font-extrabold uppercase md:text-2xl;
+  font-family: 'Barlow Condensed', 'DM Sans', sans-serif;
+  letter-spacing: 0;
+  line-height: 1;
+  color: var(--foreground);
 }

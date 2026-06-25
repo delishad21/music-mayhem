@@ -19,13 +19,15 @@ export default function GameOverPanel({
   onBackHome,
 }: GameOverPanelProps) {
   return (
-    <div className="card py-10">
+    <div className="game-segment game-segment-tint py-10">
       <div className="text-center mb-10">
         <div className="flex justify-center mb-4">
-          <Trophy size={48} weight="duotone" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-[3px] border" style={{ borderColor: 'color-mix(in srgb, var(--mode-accent) 38%, var(--border))', color: 'var(--mode-accent)' }}>
+            <Trophy size={32} weight="duotone" />
+          </div>
         </div>
-        <h2 className="text-4xl font-bold mb-2">Game Over!</h2>
-        <p className="opacity-70">Final scores</p>
+        <h2 className="display-heading mb-2 text-5xl font-extrabold uppercase leading-none">Game Over</h2>
+        <p className="eyebrow">Final scores</p>
       </div>
 
       {finalScores.length > 0 && (
@@ -37,14 +39,14 @@ export default function GameOverPanel({
               return (
                 <div
                   key={`${player.username}-${rank}`}
-                  className="rounded-xl border p-4"
+                  className="rounded-[3px] border p-4"
                   style={{
                     borderColor: 'var(--border)',
                     backgroundColor: 'var(--card)',
                   }}
                 >
-                  <div className="text-sm uppercase tracking-widest opacity-60">#{rank}</div>
-                  <div className="text-3xl font-bold mt-2" style={{ color: podiumColors[index] }}>
+                  <div className="eyebrow">#{rank}</div>
+                  <div className="display-heading mt-2 text-3xl font-bold" style={{ color: podiumColors[index] }}>
                     {player.displayName || player.username}
                   </div>
                   <div className="text-lg opacity-80 mt-1">{player.score} pts</div>
@@ -54,13 +56,13 @@ export default function GameOverPanel({
           </div>
 
           {remainingScores.length > 0 && (
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)' }}>
-              <div className="text-sm uppercase tracking-widest opacity-60 mb-3">Leaderboard</div>
+            <div className="rounded-[3px] border p-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}>
+              <div className="eyebrow mb-3">Leaderboard</div>
               <div className="space-y-2">
                 {remainingScores.map((player, index) => (
                   <div
                     key={`${player.username}-${index}`}
-                    className="flex items-center justify-between rounded-lg border px-3 py-2"
+                    className="flex items-center justify-between rounded-[3px] border px-3 py-2"
                     style={{ borderColor: 'var(--border)' }}
                   >
                     <div className="font-semibold">

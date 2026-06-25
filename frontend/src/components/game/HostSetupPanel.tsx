@@ -1,6 +1,9 @@
+import { useState } from 'react';
+import { GearSix, X } from 'phosphor-react';
 import { GameMode } from '@/types/game';
 import SettingsCard from '@/components/game/SettingsCard';
 import PlaylistCard from '@/components/game/PlaylistCard';
+import PanelHeading from '@/components/game/PanelHeading';
 import { SongItem } from '@/lib/api';
 
 interface HostSetupPanelProps {
@@ -91,41 +94,23 @@ export default function HostSetupPanel({
   onStartGame,
   onResetPlaylist,
 }: HostSetupPanelProps) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   return (
-    <div className="grid xl:grid-cols-2 gap-6 max-w-5xl mx-auto items-start">
-      <SettingsCard
-        mode={mode}
-        roundCountdownSec={settings.roundCountdownSec}
-        resultsDelaySec={settings.resultsDelaySec}
-        guessClipDurationSec={settings.guessClipDurationSec}
-        lyricAnswerTimeSec={settings.lyricAnswerTimeSec}
-        maxRounds={settings.maxRounds}
-        allowJoinInProgress={settings.allowJoinInProgress}
-        allowChineseVariants={settings.allowChineseVariants}
-        shufflePlaylist={settings.shufflePlaylist}
-        convertChineseLyrics={settings.convertChineseLyrics}
-        revealNumbers={settings.revealNumbers}
-        revealKorean={settings.revealKorean}
-        revealJapanese={settings.revealJapanese}
-        revealChinese={settings.revealChinese}
-        revealVietnamese={settings.revealVietnamese}
-        revealSpanish={settings.revealSpanish}
-        onRoundCountdownChange={settingsHandlers.onRoundCountdownChange}
-        onResultsDelayChange={settingsHandlers.onResultsDelayChange}
-        onGuessClipDurationChange={settingsHandlers.onGuessClipDurationChange}
-        onLyricAnswerTimeChange={settingsHandlers.onLyricAnswerTimeChange}
-        onMaxRoundsChange={settingsHandlers.onMaxRoundsChange}
-        onAllowJoinInProgressChange={settingsHandlers.onAllowJoinInProgressChange}
-        onAllowChineseVariantsChange={settingsHandlers.onAllowChineseVariantsChange}
-        onShufflePlaylistChange={settingsHandlers.onShufflePlaylistChange}
-        onConvertChineseLyricsChange={settingsHandlers.onConvertChineseLyricsChange}
-        onRevealNumbersChange={settingsHandlers.onRevealNumbersChange}
-        onRevealKoreanChange={settingsHandlers.onRevealKoreanChange}
-        onRevealJapaneseChange={settingsHandlers.onRevealJapaneseChange}
-        onRevealChineseChange={settingsHandlers.onRevealChineseChange}
-        onRevealVietnameseChange={settingsHandlers.onRevealVietnameseChange}
-        onRevealSpanishChange={settingsHandlers.onRevealSpanishChange}
-      />
+    <div className="mx-auto grid w-full max-w-3xl gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3" style={{ borderColor: 'var(--border)' }}>
+        <div>
+          <div className="eyebrow mb-1">Host Setup</div>
+          <div className="text-sm opacity-70">
+            {settings.maxRounds > 0 ? `${settings.maxRounds} rounds` : 'No round cap'} · {settings.shufflePlaylist ? 'Shuffle on' : 'Shuffle off'}
+          </div>
+        </div>
+        <button type="button" className="btn-secondary px-3 py-2 text-sm" onClick={() => setSettingsOpen(true)}>
+          <GearSix size={16} weight="duotone" />
+          Settings
+        </button>
+      </div>
+
       <PlaylistCard
         playlist={playlist}
         playlistSource={playlistSource}
@@ -150,8 +135,62 @@ export default function HostSetupPanel({
       />
 
       {hostError && (
-        <div className="p-3 rounded-lg bg-red-500 bg-opacity-20 text-red-500 border border-red-500">
+        <div className="rounded-[3px] border border-red-500 bg-red-500 bg-opacity-20 p-3 text-red-500">
           {hostError}
+        </div>
+      )}
+
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
+          <div className="modal-panel max-h-[88vh] w-full max-w-3xl overflow-y-auto">
+            <div className="mb-5 flex items-start justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--border)' }}>
+              <div>
+                <div className="eyebrow mb-2">Room Settings</div>
+                <PanelHeading icon={<GearSix size={16} weight="duotone" />} title="Game Setup" />
+              </div>
+              <button type="button" className="btn-secondary px-3 py-2 text-sm" onClick={() => setSettingsOpen(false)} aria-label="Close settings">
+                <X size={16} weight="duotone" />
+              </button>
+            </div>
+            <SettingsCard
+              mode={mode}
+              roundCountdownSec={settings.roundCountdownSec}
+              resultsDelaySec={settings.resultsDelaySec}
+              guessClipDurationSec={settings.guessClipDurationSec}
+              lyricAnswerTimeSec={settings.lyricAnswerTimeSec}
+              maxRounds={settings.maxRounds}
+              allowJoinInProgress={settings.allowJoinInProgress}
+              allowChineseVariants={settings.allowChineseVariants}
+              shufflePlaylist={settings.shufflePlaylist}
+              convertChineseLyrics={settings.convertChineseLyrics}
+              revealNumbers={settings.revealNumbers}
+              revealKorean={settings.revealKorean}
+              revealJapanese={settings.revealJapanese}
+              revealChinese={settings.revealChinese}
+              revealVietnamese={settings.revealVietnamese}
+              revealSpanish={settings.revealSpanish}
+              onRoundCountdownChange={settingsHandlers.onRoundCountdownChange}
+              onResultsDelayChange={settingsHandlers.onResultsDelayChange}
+              onGuessClipDurationChange={settingsHandlers.onGuessClipDurationChange}
+              onLyricAnswerTimeChange={settingsHandlers.onLyricAnswerTimeChange}
+              onMaxRoundsChange={settingsHandlers.onMaxRoundsChange}
+              onAllowJoinInProgressChange={settingsHandlers.onAllowJoinInProgressChange}
+              onAllowChineseVariantsChange={settingsHandlers.onAllowChineseVariantsChange}
+              onShufflePlaylistChange={settingsHandlers.onShufflePlaylistChange}
+              onConvertChineseLyricsChange={settingsHandlers.onConvertChineseLyricsChange}
+              onRevealNumbersChange={settingsHandlers.onRevealNumbersChange}
+              onRevealKoreanChange={settingsHandlers.onRevealKoreanChange}
+              onRevealJapaneseChange={settingsHandlers.onRevealJapaneseChange}
+              onRevealChineseChange={settingsHandlers.onRevealChineseChange}
+              onRevealVietnameseChange={settingsHandlers.onRevealVietnameseChange}
+              onRevealSpanishChange={settingsHandlers.onRevealSpanishChange}
+            />
+            <div className="mt-5 flex justify-end border-t pt-4" style={{ borderColor: 'var(--border)' }}>
+              <button type="button" className="btn px-5 py-2 text-sm" onClick={() => setSettingsOpen(false)}>
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

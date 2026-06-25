@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import Image from 'next/image';
-import { SpotifyLogo, YoutubeLogo } from 'phosphor-react';
+import { MusicNotes, SpotifyLogo, YoutubeLogo } from 'phosphor-react';
 import { SongItem } from '@/lib/api';
+import PanelHeading from './PanelHeading';
 
 interface RecommendedPlaylist {
   name: string;
@@ -61,61 +62,63 @@ export default function PlaylistCard({
   const recommended =
     playlistSource === 'manual' ? [] : recommendedPlaylists[playlistSource] || [];
   const visibleSongs = showAllSongs ? playlist : playlist.slice(0, VISIBLE_SONGS);
+  const sourceButtonClass = (source: 'spotify' | 'youtube' | 'manual') =>
+    playlistSource === source ? 'btn px-4 py-2 text-sm' : 'btn-secondary px-4 py-2 text-sm';
 
   return (
-    <div className="space-y-5 rounded-xl border p-5" style={{ borderColor: 'var(--border)' }}>
+    <div className="space-y-4 border p-4" style={{ borderColor: 'var(--border)', backgroundColor: 'transparent' }}>
       {playlist.length > 0 ? (
         <>
-          <div className="flex items-center justify-between px-4 py-3">
-            <h3 className="text-base font-semibold uppercase tracking-[0.18em] text-[var(--text)]">
-              Playlist Ready
-            </h3>
-            <div className="text-sm opacity-70">{playlist.length} songs</div>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 px-4">
+          <PanelHeading
+            icon={<MusicNotes size={16} weight="duotone" />}
+            title="Playlist Ready"
+            action={<div className="mode-chip">{playlist.length} songs</div>}
+          />
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {shuffleEnabled && (
               <button
                 type="button"
                 onClick={onShufflePlaylist}
-                className="btn-secondary px-3 py-1 text-xs"
+                className="btn-secondary px-3 py-2 text-xs"
                 disabled={playlist.length === 0}
                 title="Shuffle loaded playlist"
               >
                 Reshuffle playlist
               </button>
             )}
-            <button type="button" onClick={onResetPlaylist} className="btn-secondary px-3 py-1 text-xs">
+            <button type="button" onClick={onResetPlaylist} className="btn-secondary px-3 py-2 text-xs">
               Change Playlist
             </button>
           </div>
 
           {!firstSongReady && (
-            <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--border)' }}>
-              <div className="text-sm font-semibold mb-1">
+            <div className="border p-2.5" style={{ borderColor: 'var(--border)' }}>
+              <div className="mb-1 text-sm font-semibold">
                 {playlistPreparing ? 'Loading first song...' : 'Preparing songs...'}
               </div>
-              <div className="w-full bg-gray-300 dark:bg-gray-700 h-2 rounded-full overflow-hidden mb-2">
+              <div className="progress-track mb-2">
                 <div
-                  className="h-full transition-all duration-300"
+                  className="progress-fill"
                   style={{
                     width: `${Math.round(nextSongProgress * 100)}%`,
-                    backgroundColor: 'var(--primary)',
                   }}
                 />
               </div>
-              <div className="text-xs opacity-70">
-                Progress: {Math.round(nextSongProgress * 100)}% • Loading: {queueLoadingCount} • Failed: {queueFailedCount}
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="mode-chip">Progress {Math.round(nextSongProgress * 100)}%</span>
+                <span className="mode-chip">Loading {queueLoadingCount}</span>
+                <span className="mode-chip">Failed {queueFailedCount}</span>
               </div>
             </div>
           )}
 
           {firstSongReady && (
-            <div className="p-3 rounded-lg border border-green-500 text-green-500 text-sm font-semibold">
+            <div className="border border-green-500 p-2.5 text-sm font-semibold text-green-500">
               ✓ First song loaded. You can start the game.
             </div>
           )}
 
-          <details className="group rounded-lg border" style={{ borderColor: 'var(--border)' }}>
+          <details className="group border" style={{ borderColor: 'var(--border)' }}>
             <summary className="cursor-pointer select-none px-4 py-3 font-semibold flex items-center justify-between bg-[var(--card-hover)]">
               <span>Loaded songs</span>
               <span className="flex items-center gap-2 text-sm opacity-70">
@@ -123,34 +126,34 @@ export default function PlaylistCard({
                 <span className="text-2xl transition-transform duration-200 group-open:rotate-180">▾</span>
               </span>
             </summary>
-            <div className="max-h-72 overflow-auto space-y-2 px-4 pb-4">
+            <div className="max-h-72 space-y-1.5 overflow-auto px-3 pb-3 pt-2">
               {visibleSongs.map((item, index) => (
                 <div
                   key={`${item.songName || item.url}-${item.artist || ''}-${item.url || ''}-${index}`}
-                  className="p-3 rounded-lg border"
+                  className="border px-2 py-2"
                   style={{ borderColor: 'var(--border)' }}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
                     {item.albumArtUrl ? (
                       <Image
                         src={item.albumArtUrl}
                         alt={`${item.songName || 'Song'} artwork`}
                         width={48}
                         height={48}
-                        className="w-12 h-12 rounded-md object-cover border"
+                        className="h-10 w-10 object-cover"
                         style={{ borderColor: 'var(--border)' }}
                         unoptimized
                       />
                     ) : (
                       <div
-                        className="w-12 h-12 rounded-md border flex items-center justify-center text-xs opacity-60"
+                        className="flex h-10 w-10 items-center justify-center border text-xs opacity-60"
                         style={{ borderColor: 'var(--border)' }}
                       >
                         Art
                       </div>
                     )}
-                    <div>
-                      <div className="font-semibold">{item.songName || 'Unknown Song'}</div>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold">{item.songName || 'Unknown Song'}</div>
                       <div className="text-sm opacity-70">{item.artist || 'Unknown Artist'}</div>
                     </div>
                   </div>
@@ -182,33 +185,29 @@ export default function PlaylistCard({
         </>
       ) : (
         <>
-          <div className="text-sm font-semibold uppercase tracking-[0.2em] opacity-70">Playlist Import</div>
+          <PanelHeading icon={<MusicNotes size={16} weight="duotone" />} title="Playlist Import" />
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 border p-1" style={{ borderColor: 'var(--border)' }}>
             <button
               type="button"
               onClick={() => onPlaylistSourceChange('spotify')}
-              className={playlistSource === 'spotify' ? 'btn px-4 py-2 text-sm' : 'btn-secondary px-4 py-2 text-sm'}
+              className={sourceButtonClass('spotify')}
             >
-              <span className="flex items-center gap-2">
-                <SpotifyLogo size={18} weight="duotone" />
-                Spotify Playlist
-              </span>
+              <SpotifyLogo size={18} weight="duotone" />
+              Spotify Playlist
             </button>
             <button
               type="button"
               onClick={() => onPlaylistSourceChange('youtube')}
-              className={playlistSource === 'youtube' ? 'btn px-4 py-2 text-sm' : 'btn-secondary px-4 py-2 text-sm'}
+              className={sourceButtonClass('youtube')}
             >
-              <span className="flex items-center gap-2">
-                <YoutubeLogo size={18} weight="duotone" />
-                YouTube Playlist
-              </span>
+              <YoutubeLogo size={18} weight="duotone" />
+              YouTube Playlist
             </button>
             <button
               type="button"
               onClick={() => onPlaylistSourceChange('manual')}
-              className={playlistSource === 'manual' ? 'btn px-4 py-2 text-sm' : 'btn-secondary px-4 py-2 text-sm'}
+              className={sourceButtonClass('manual')}
             >
               Manual List
             </button>
@@ -216,10 +215,10 @@ export default function PlaylistCard({
 
           {(playlistSource === 'spotify' || playlistSource === 'youtube') && (
             <div className="space-y-3">
-              <label className="block font-semibold">
+              <label className="block text-sm font-semibold">
                 {playlistSource === 'spotify' ? 'Spotify Playlist URL' : 'YouTube Playlist URL'}
               </label>
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <input
                   type="url"
                   value={playlistUrl}
@@ -240,7 +239,7 @@ export default function PlaylistCard({
 
           {playlistSource === 'manual' && (
             <div className="space-y-3">
-              <label className="block font-semibold">Manual Song List</label>
+              <label className="block text-sm font-semibold">Manual Song List</label>
               <p className="text-sm opacity-70">Enter one song per line in the format: Artist - Song Name</p>
               <textarea
                 value={manualSongs}
@@ -258,7 +257,7 @@ export default function PlaylistCard({
 
           {(playlistSource === 'spotify' || playlistSource === 'youtube') && recommended.length > 0 && (
             <div className="space-y-3">
-              <div className="text-sm font-semibold uppercase tracking-[0.2em] opacity-70">
+              <div className="eyebrow">
                 Recommended Playlists
               </div>
               <div className="grid md:grid-cols-2 gap-2">
@@ -267,7 +266,7 @@ export default function PlaylistCard({
                     key={item.url}
                     type="button"
                     onClick={() => onPlaylistUrlChange(item.url)}
-                    className="text-left px-3 py-2 rounded-lg border text-sm hover:bg-[var(--card-hover)] transition-colors"
+                    className="border px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--card-hover)]"
                     style={{ borderColor: 'var(--border)' }}
                   >
                     {item.name}
