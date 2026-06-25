@@ -593,12 +593,6 @@ docker compose -f docker-compose.dev.yml logs -f game-service
 
 ---
 
-## License
-
-MIT (or your chosen license)
-
----
-
 ## Credits
 
 Built with:
