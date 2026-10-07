@@ -49,7 +49,7 @@ services:
       - SYNCEDLYRICS_ENHANCED=${SYNCEDLYRICS_ENHANCED}
       - MIN_LYRIC_SIMILARITY=${MIN_LYRIC_SIMILARITY}
       - YTDLP_POT_PROVIDER_URL=${YTDLP_POT_PROVIDER_URL:-http://pot-provider:4416}
-      - YTDLP_PLAYER_CLIENTS=${YTDLP_PLAYER_CLIENTS:-mweb,web_safari,web_embedded,tv}
+      - YTDLP_PLAYER_CLIENTS=${YTDLP_PLAYER_CLIENTS:-mweb,web_safari,tv,default}
       - YTDLP_REMOTE_COMPONENTS=${YTDLP_REMOTE_COMPONENTS:-ejs:github}
       - YTDLP_COOKIES_FILE=
     volumes:
@@ -67,7 +67,7 @@ services:
   # YouTube PO-token provider for yt-dlp. This mirrors production and avoids
   # relying on browser cookies for normal YouTube playback extraction.
   pot-provider:
-    image: brainicism/bgutil-ytdlp-pot-provider:1.3.1-deno
+    image: brainicism/bgutil-ytdlp-pot-provider:2.0.1-deno
     container_name: music-game-pot-provider-dev
     restart: unless-stopped
     networks:

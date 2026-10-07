@@ -71,9 +71,12 @@ YTDLP_COOKIES_CACHE = Path(os.getenv('YTDLP_COOKIES_CACHE', '/tmp/music-mayhem-y
 YTDLP_JS_RUNTIME = os.getenv('YTDLP_JS_RUNTIME', 'deno').strip().lower()
 YTDLP_JS_RUNTIME_PATH = os.getenv('YTDLP_JS_RUNTIME_PATH', '').strip()
 YTDLP_POT_PROVIDER_URL = os.getenv('YTDLP_POT_PROVIDER_URL', '').strip()
+# Order matters: yt-dlp keeps the first client's copy of each format. mweb streams
+# (PO token from the sidecar) are the most reliable for ranged downloads; 'default'
+# (visionos, no PO token needed) takes over automatically if the sidecar is down.
 YTDLP_PLAYER_CLIENTS = [
     client.strip()
-    for client in os.getenv('YTDLP_PLAYER_CLIENTS', 'mweb,web_safari,web_embedded,tv').split(',')
+    for client in os.getenv('YTDLP_PLAYER_CLIENTS', 'mweb,web_safari,tv,default').split(',')
     if client.strip()
 ]
 YTDLP_REMOTE_COMPONENTS = [
@@ -83,14 +86,26 @@ YTDLP_REMOTE_COMPONENTS = [
 ]
 YTDLP_FALLBACK_PLAYER_CLIENTS = [
     ['web_safari', 'web_embedded', 'tv'],
-    ['android_vr', 'web_embedded', 'tv'],
+    # android_vr was dropped here: all its formats return 403 since yt-dlp 2026.08.
+    ['visionos', 'web_embedded', 'tv'],
     ['web_embedded', 'tv'],
 ]
 YTDLP_RETRYABLE_EXTRACT_ERRORS = [
     'Requested format is not available',
     'Sign in to confirm',
     'LOGIN_REQUIRED',
+    # Transient stream/network failures that usually succeed on a second attempt.
+    'ffmpeg exited with code',
+    'HTTP Error 403',
+    'HTTP Error 500',
+    'HTTP Error 502',
+    'HTTP Error 503',
+    'Unable to download',
+    'timed out',
+    'Connection reset',
+    'IncompleteRead',
 ]
+YTDLP_RETRY_DELAY_SEC = 2.0
 
 
 class DownloadCancelled(RuntimeError):
@@ -702,12 +717,16 @@ def _extract_info_with_fallback(
     for idx, (label, opts) in enumerate(attempts):
         if idx > 0:
             log(f"⚠️ Retrying yt-dlp with {label}", log_prefix)
+            time.sleep(YTDLP_RETRY_DELAY_SEC)
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=download, process=process)
+        except DownloadCancelled:
+            raise
         except Exception as exc:
             if not any(marker in str(exc) for marker in YTDLP_RETRYABLE_EXTRACT_ERRORS):
                 raise
+            log(f"⚠️ yt-dlp attempt failed ({label}): {exc}", log_prefix)
             last_extract_error = exc
 
     if last_extract_error:
