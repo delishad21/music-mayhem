@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { signIn } from 'next-auth/react';
 import ThemeToggle from '@/components/ThemeToggle';
-import { MusicNote } from 'phosphor-react';
+import LogoMark from '@/components/LogoMark';
 
 function AuthPageContent() {
   const router = useRouter();
@@ -111,7 +111,7 @@ function AuthPageContent() {
         <div className="text-center mb-8">
           <h1 className="display-heading mb-2 text-5xl font-extrabold uppercase leading-none" style={{ color: 'var(--primary)' }}>
             <span className="inline-flex items-center gap-3">
-              <MusicNote className="block flex-shrink-0" size={32} weight="duotone" />
+              <LogoMark size={44} />
               Music Mayhem
             </span>
           </h1>

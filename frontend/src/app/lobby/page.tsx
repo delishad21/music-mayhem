@@ -10,6 +10,7 @@ import { Hash, Headphones, ListBullets, MicrophoneStage, MusicNote, Trophy } fro
 import AuthRequiredModal from '@/components/AuthRequiredModal';
 import { signIn } from 'next-auth/react';
 import PanelHeading from '@/components/game/PanelHeading';
+import LogoMark from '@/components/LogoMark';
 
 export default function LobbyPage() {
   const router = useRouter();
@@ -155,7 +156,7 @@ export default function LobbyPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <MusicNote size={40} weight="duotone" />
+            <LogoMark size={48} />
           </div>
           <div>Loading...</div>
         </div>

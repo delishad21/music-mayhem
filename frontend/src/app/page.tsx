@@ -10,7 +10,6 @@ import { GameMode } from "@/types/game";
 import {
   Headphones,
   MicrophoneStage,
-  MusicNote,
   SignIn,
   SignOut,
   Trophy,
@@ -19,6 +18,7 @@ import {
 import GameModeCard from "@/components/GameModeCard";
 import AuthRequiredModal from "@/components/AuthRequiredModal";
 import RoomSettingsModal from "@/components/RoomSettingsModal";
+import LogoMark from "@/components/LogoMark";
 
 export default function Home() {
   const router = useRouter();
@@ -154,7 +154,7 @@ export default function Home() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <MusicNote size={40} weight="duotone" />
+            <LogoMark size={48} />
           </div>
           <div>Loading...</div>
         </div>
@@ -167,9 +167,7 @@ export default function Home() {
       {/* Header */}
       <header className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[3px] bg-[var(--primary)] text-white">
-            <MusicNote size={16} weight="duotone" />
-          </div>
+          <LogoMark size={32} />
           <span className="display-heading text-xl font-extrabold tracking-normal">MUSIC MAYHEM</span>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">

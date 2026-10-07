@@ -8,9 +8,6 @@ import AuthSync from "@/components/AuthSync";
 export const metadata: Metadata = {
   title: "Music Mayhem",
   description: "Multiplayer music guessing and lyric completion game",
-  icons: {
-    icon: "/icon.svg",
-  },
 };
 
 export default function RootLayout({

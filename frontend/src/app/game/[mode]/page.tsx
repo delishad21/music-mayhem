@@ -44,6 +44,7 @@ import HostSetupPanel from '@/components/game/HostSetupPanel';
 import PreviousSongsCard from '@/components/game/PreviousSongsCard';
 import { GameMode } from '@/types/game';
 import { Headphones, MicrophoneStage, MusicNote, Pause, Play, SignOut, SkipForward, SpeakerHigh, Square, Trophy } from 'phosphor-react';
+import LogoMark from '@/components/LogoMark';
 
 export default function GamePage() {
   const params = useParams();
@@ -542,7 +543,7 @@ export default function GamePage() {
       >
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <MusicNote size={40} weight="duotone" />
+            <LogoMark size={48} />
           </div>
           <div>Loading...</div>
         </div>
@@ -558,7 +559,7 @@ export default function GamePage() {
       >
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <MusicNote size={40} weight="duotone" />
+            <LogoMark size={48} />
           </div>
           <div>Setting up room...</div>
         </div>
