@@ -1,22 +1,33 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS builder
 
-# Install system dependencies and Deno for yt-dlp's YouTube JS challenge solving.
-RUN apt-get update && apt-get install -y \
+# Deno is used by yt-dlp to solve YouTube's JS challenges.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    ffmpeg \
     unzip \
     && curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh \
     && /usr/local/bin/deno --version \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
-# Copy requirements first for better caching
+# Install Python dependencies into a virtualenv that the final stage copies.
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+FROM python:3.11-slim AS runner
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/bin/deno /usr/local/bin/deno
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
 
 # Copy application code
 COPY *.py ./

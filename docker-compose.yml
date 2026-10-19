@@ -1,4 +1,12 @@
-version: '3.8'
+# Production stack for the home server (compose project "musicgame").
+# devbot builds this on the server with `REVISION=<commit> docker compose -p musicgame build`.
+# See deploy/README.md. Settings come from .env (deploy/musicgame.env.example).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
 
 services:
   # MongoDB Database
@@ -6,56 +14,65 @@ services:
     image: mongo:7
     container_name: music-game-mongo
     restart: unless-stopped
-    env_file:
-      - ./.env
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
     volumes:
-      - mongodb_data:/data/db
+      - /srv/musicgame/mongodb:/data/db
     networks:
       - music-game-network
+    labels:
+      backup: mongo
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: *logging
 
   # Song Download Service (Python Flask API)
   song-service:
-    image: ${DOCKERHUB_USERNAME:-musicgame}/musicgame-song-service:latest
+    build:
+      context: ./song-service
+    image: musicgame-song-service:${REVISION:-dev}
     container_name: music-game-songs
     restart: unless-stopped
-    env_file:
-      - ./.env
     environment:
-      - MONGODB_URI=${MONGODB_URI}
-      - SPOTIFY_MARKET=${SPOTIFY_MARKET}
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
-      - USE_YT_MUSIC=${USE_YT_MUSIC}
-      - YT_MUSIC_ONLY=${YT_MUSIC_ONLY}
-      - YTM_LYRICS_FIRST=${YTM_LYRICS_FIRST}
-      - USE_MUSICBRAINZ=${USE_MUSICBRAINZ}
-      - MUSICBRAINZ_USER_AGENT=${MUSICBRAINZ_USER_AGENT}
-      - SYNCEDLYRICS_PROVIDERS=${SYNCEDLYRICS_PROVIDERS}
-      - SYNCEDLYRICS_ENHANCED=${SYNCEDLYRICS_ENHANCED}
-      - MIN_LYRIC_SIMILARITY=${MIN_LYRIC_SIMILARITY}
-      - YTDLP_POT_PROVIDER_URL=${YTDLP_POT_PROVIDER_URL:-http://pot-provider:4416}
-      - YTDLP_PLAYER_CLIENTS=${YTDLP_PLAYER_CLIENTS:-mweb,web_safari,tv,default}
-      - YTDLP_REMOTE_COMPONENTS=${YTDLP_REMOTE_COMPONENTS:-ejs:github}
-      - YTDLP_COOKIES_FILE=
+      MONGODB_URI: ${MONGODB_URI}
+      SPOTIFY_MARKET: ${SPOTIFY_MARKET}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
+      USE_YT_MUSIC: ${USE_YT_MUSIC}
+      YT_MUSIC_ONLY: ${YT_MUSIC_ONLY}
+      YTM_LYRICS_FIRST: ${YTM_LYRICS_FIRST}
+      USE_MUSICBRAINZ: ${USE_MUSICBRAINZ}
+      MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT}
+      SYNCEDLYRICS_PROVIDERS: ${SYNCEDLYRICS_PROVIDERS}
+      SYNCEDLYRICS_ENHANCED: ${SYNCEDLYRICS_ENHANCED}
+      MIN_LYRIC_SIMILARITY: ${MIN_LYRIC_SIMILARITY}
+      YTDLP_POT_PROVIDER_URL: ${YTDLP_POT_PROVIDER_URL:-http://pot-provider:4416}
+      YTDLP_PLAYER_CLIENTS: ${YTDLP_PLAYER_CLIENTS:-mweb,web_safari,tv,default}
+      YTDLP_REMOTE_COMPONENTS: ${YTDLP_REMOTE_COMPONENTS:-ejs:github}
+      YTDLP_COOKIES_FILE: ${YTDLP_COOKIES_FILE:-}
     volumes:
-      - ./song-service/cookies.txt:/run/secrets/yt-dlp-cookies.txt:ro
-      - song_data:/app/songs
+      # Downloaded audio and lyrics (re-downloadable, so not backed up).
+      - /srv/musicgame/songs:/app/songs
+      - /srv/musicgame/cookies.txt:/run/secrets/yt-dlp-cookies.txt:ro
     networks:
       - music-game-network
     depends_on:
       mongodb:
         condition: service_healthy
       pot-provider:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/health', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging: *logging
 
   # YouTube PO-token provider for yt-dlp.
   pot-provider:
@@ -64,26 +81,33 @@ services:
     restart: unless-stopped
     networks:
       - music-game-network
+    healthcheck:
+      test: ["CMD", "deno", "eval", "const r = await fetch('http://127.0.0.1:4416/ping'); Deno.exit(r.ok ? 0 : 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging: *logging
 
   # Game API (Express + Socket.IO)
   game-service:
-    image: ${DOCKERHUB_USERNAME:-musicgame}/musicgame-game-service:latest
+    build:
+      context: ./game-service
+    image: musicgame-game-service:${REVISION:-dev}
     container_name: music-game-game-service
     restart: unless-stopped
-    env_file:
-      - ./.env
     environment:
-      - PORT=${PORT}
-      - MONGODB_URI=${MONGODB_URI}
-      - JWT_SECRET=${JWT_SECRET}
-      - NODE_ENV=${NODE_ENV}
-      - FRONTEND_URL=${FRONTEND_URL}
-      - SONG_SERVICE_URL=${SONG_SERVICE_URL}
-      - SONG_SERVICE_PATH=${SONG_SERVICE_PATH}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-      - MAX_PARALLEL_DOWNLOADS=${MAX_PARALLEL_DOWNLOADS:-2}
+      PORT: ${PORT:-5000}
+      MONGODB_URI: ${MONGODB_URI}
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: ${NODE_ENV:-production}
+      FRONTEND_URL: ${FRONTEND_URL}
+      SONG_SERVICE_URL: ${SONG_SERVICE_URL}
+      SONG_SERVICE_PATH: ${SONG_SERVICE_PATH}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      MAX_PARALLEL_DOWNLOADS: ${MAX_PARALLEL_DOWNLOADS:-2}
     volumes:
-      - song_data:/app/songs:ro
+      - /srv/musicgame/songs:/app/songs:ro
     networks:
       - music-game-network
     depends_on:
@@ -91,45 +115,62 @@ services:
         condition: service_healthy
       song-service:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 5000) + '/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging: *logging
 
   # Frontend (Next.js)
   frontend:
-    image: ${DOCKERHUB_USERNAME:-musicgame}/musicgame-frontend:latest
+    build:
+      context: ./frontend
+      args:
+        # Baked in at build time as a fallback; the runtime config below wins.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://musicgame.delishad.com}
+    image: musicgame-frontend:${REVISION:-dev}
     container_name: music-game-frontend
     restart: unless-stopped
-    env_file:
-      - ./.env
     environment:
-      - PORT=3000
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-      - NEXT_BACKEND_URL=${NEXT_BACKEND_URL}
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_BACKEND_URL: ${NEXT_BACKEND_URL}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
     networks:
       - music-game-network
     depends_on:
       - game-service
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.status < 500 ? 0 : 1), () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging: *logging
 
-  # Single-URL reverse proxy (for production)
+  # Single-URL reverse proxy; the host nginx (musicgame.delishad.com) points here.
   edge:
-    image: nginx:1.27-alpine
+    build:
+      context: ./infra/nginx
+    image: musicgame-edge:${REVISION:-dev}
     container_name: music-game-edge
     restart: unless-stopped
     ports:
-      - "5762:80"
-    volumes:
-      - ./infra/nginx/dev-ngrok.conf:/etc/nginx/conf.d/default.conf:ro
+      - "127.0.0.1:5762:80"
     networks:
       - music-game-network
     depends_on:
       - frontend
       - game-service
-
-volumes:
-  mongodb_data:
-    driver: local
-  song_data:
-    driver: local
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/edge-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    logging: *logging
 
 networks:
   music-game-network:

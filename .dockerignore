@@ -1,0 +1,11 @@
+# Each service builds from its own folder (with its own .dockerignore);
+# this covers any build that uses the repo root as its context.
+**/node_modules
+**/.next
+**/dist
+**/__pycache__
+.git
+**/cookies.txt
+**/.env
+**/.env.*
+!**/.env.example

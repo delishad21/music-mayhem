@@ -17,16 +17,13 @@ Access the game at http://localhost:3000
 
 ### Production (single URL via nginx edge)
 
-```bash
-# Edit .env for production domains and secrets
+`docker-compose.yml` is the production stack for the home server. It builds
+every image from this repo and stores data under `/srv/musicgame`.
 
-docker compose up -d --build
-```
+### Home Server
 
-### Portainer / Home Server
-
-- Use `docker-compose.portainer.yml` and supply env vars in Portainer
-- Mounts expect `/srv/musicgame`
+Deployed by devbot (`devbot deploy music-mayhem`); see [deploy/README.md](deploy/README.md).
+The old Docker Hub flow (`scripts/push-images.sh` + the Portainer stack) is retired.
 
 ---
 
@@ -547,16 +544,15 @@ docker compose -f docker-compose.dev.yml logs -f game-service
 │   ├── parse_playlist.py # Spotify/YouTube parsing
 │   └── spotify_integration.py # Spotify API client
 │
-├── infra/nginx/          # Nginx configuration
-│   └── templates/        # Dynamic config templates
+├── infra/nginx/          # Edge proxy (edge.conf + Dockerfile for prod, dev-ngrok.conf for dev)
+│
+├── deploy/               # Home server deploy notes, nginx site, env example
 │
 ├── scripts/              # Utility scripts
-│   ├── build-and-push.sh # Docker build/push
-│   └── ngrok-tunnel.sh   # Ngrok tunneling
+│   └── start-ngrok.sh    # Ngrok tunneling
 │
-├── docker-compose.yml           # Production compose
-├── docker-compose.dev.yml       # Development compose
-└── docker-compose.portainer.yml # Portainer/home server
+├── docker-compose.yml           # Production compose (home server)
+└── docker-compose.dev.yml       # Development compose
 ```
 
 ---
