@@ -35,7 +35,7 @@ services:
   song-service:
     build:
       context: ./song-service
-    image: musicgame-song-service:${REVISION:-dev}
+    image: music-mayhem-song-service:${REVISION:-dev}
     container_name: music-game-songs
     restart: unless-stopped
     environment:
@@ -93,7 +93,7 @@ services:
   game-service:
     build:
       context: ./game-service
-    image: musicgame-game-service:${REVISION:-dev}
+    image: music-mayhem-game-service:${REVISION:-dev}
     container_name: music-game-game-service
     restart: unless-stopped
     environment:
@@ -130,7 +130,7 @@ services:
       args:
         # Baked in at build time as a fallback; the runtime config below wins.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://musicgame.delishad.com}
-    image: musicgame-frontend:${REVISION:-dev}
+    image: music-mayhem-frontend:${REVISION:-dev}
     container_name: music-game-frontend
     restart: unless-stopped
     environment:
@@ -155,7 +155,7 @@ services:
   edge:
     build:
       context: ./infra/nginx
-    image: musicgame-edge:${REVISION:-dev}
+    image: music-mayhem-edge:${REVISION:-dev}
     container_name: music-game-edge
     restart: unless-stopped
     ports:
