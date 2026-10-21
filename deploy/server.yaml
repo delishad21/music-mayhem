@@ -1,0 +1,10 @@
+# How music-mayhem sits on the home server (devbot server plan / apply; DEPLOY.md "Server").
+# Written from the hand-made site it replaces (musicgame.conf); the site keeps its old name.
+host: musicgame.delishad.com
+port: 5762
+websockets: true
+health: /api/health
+exposure: public-sg
+dns: dns-only
+auth: open
+teardown: { volumes: keep }
