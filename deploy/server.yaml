@@ -7,4 +7,5 @@ health: /api/health
 exposure: public-sg
 dns: dns-only
 auth: open
-teardown: { volumes: keep }
+teardown:
+  volumes: keep
